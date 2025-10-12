@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------
+  # 1. Microservicio de Productos
+  # ----------------------------------------------------
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: product-service
+    ports:
+      - "8000:8000" # Acceso al API desde el navegador
+    volumes:
+      - ./product-service:/app # Para desarrollo en tiempo real
+    depends_on:
+      - db
+
+  # ----------------------------------------------------
+  # 2. Base de Datos (MySQL) - ¡Tu elección!
+  # ----------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      # Credenciales que usaremos en el código Python
+      MYSQL_ROOT_PASSWORD: password_segura
+      MYSQL_DATABASE: easyadmin_db
+      MYSQL_USER: easyadmin_user
+      MYSQL_PASSWORD: password_segura
+    ports:
+      - "3306:3306" # Puerto estándar de MySQL
+    volumes:
+      - mysql_data:/var/lib/mysql # Persistencia de datos
+
+# ----------------------------------------------------
+# Volúmenes para persistencia
+# ----------------------------------------------------
+volumes:
+  mysql_data:
