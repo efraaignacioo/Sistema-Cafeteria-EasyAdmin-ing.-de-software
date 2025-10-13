@@ -6,14 +6,14 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from pydantic import BaseModel # AÑADIDO: Importamos BaseModel para los modelos de tu compañero
 
 # ----------------------------------------------------
-# 1. Creación de la Instancia de FastAPI (¡PASO CLAVE!)
-#    Esto debe ocurrir ANTES de usar '@app'.
+# 1. Creación de la Instancia de FastAPI
 # ----------------------------------------------------
 app = FastAPI(
     title="Servicio de Productos - EasyAdmin",
-    description="API para gestionar los productos de la cafetería.",
+    description="API para gestionar los productos y pedidos de la cafetería.",
     version="1.0.0"
 )
 
@@ -27,27 +27,46 @@ DB_NAME = os.getenv("MYSQL_DATABASE", "easyadmin_db")
 DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
 
 # ----------------------------------------------------
-# 3. Configuración y Modelos de SQLAlchemy
+# 3. Configuración y Modelos de SQLAlchemy (Base de Datos)
 # ----------------------------------------------------
-# AÑADIDO: 'Base' es necesario para que SQLAlchemy sepa cómo crear las tablas.
 Base = declarative_base()
-
-# Motor de conexión (se inicializará en el evento 'startup')
 engine = None
 SessionLocal = None
 
-# AÑADIDO: Un modelo de ejemplo para que 'Base.metadata.create_all' funcione.
-# Debes reemplazar esto con tus modelos reales (ej: Producto).
+# Modelo para la tabla 'products' en la base de datos
 class Product(Base):
     __tablename__ = "products"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), index=True)
     description = Column(String(255))
     price = Column(Float)
+
+# ----------------------------------------------------
+# CÓDIGO DE TU COMPAÑERO INTEGRADO
+# ----------------------------------------------------
+
+# 4. Modelos de Pydantic (para validar los datos de entrada de la API)
+class ProductoAPI(BaseModel):
+    nombre: str
+    precio: int
+
+class PedidoAPI(BaseModel):
+    productos: list[str]
+
+# 5. Datos en memoria (esto es temporal, luego debería usar la base de datos)
+menu = {
+    "cafecito": 2500,
+    "tostada": 1750,
+    "empanada": 2000,
+    "jugo": 1500,
+    "té" : 1200,
+    "chocolate": 3000,
+}
+pedidos = []
+pedidos_id_counter = 1
     
 # ----------------------------------------------------
-# 4. Evento de Arranque para Conectar a la DB
-#    Ahora 'app' ya existe y este código es válido.
+# 6. Evento de Arranque para Conectar a la DB
 # ----------------------------------------------------
 @app.on_event("startup")
 def startup_db_client():
@@ -57,39 +76,75 @@ def startup_db_client():
     for attempt in range(max_attempts):
         try:
             print(f"product-service | Intentando conectar a la DB... (Intento {attempt+1}/{max_attempts})")
-            
-            # Intento de conexión
             engine = create_engine(DATABASE_URL)
             engine.connect()
-            
-            # Si la conexión es exitosa, creamos la sesión y las tablas
-            # AÑADIDO: Faltaba importar 'sessionmaker'.
             SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            Base.metadata.create_all(bind=engine) # Esto creará la tabla 'products'
-            
+            Base.metadata.create_all(bind=engine)
             print("product-service | ✅ Conexión a MySQL exitosa y tablas creadas.")
             return
-        
         except Exception as e:
             print(f"product-service | ⚠️  Fallo en la conexión: {e}")
             if attempt == max_attempts - 1:
                 print(f"product-service | ❌ ERROR FATAL: Fallo al conectar a la DB después de {max_attempts} intentos.")
                 raise e
-
             time.sleep(5)
 
 # ----------------------------------------------------
-# 5. Endpoint de Salud (Health Check)
+# 7. Endpoints de la API
 # ----------------------------------------------------
+
+# Endpoint de Salud
 @app.get("/health", tags=["Salud del Servicio"])
 def health_check():
     """Verifica el estado general del microservicio y su conexión a MySQL."""
     if engine and SessionLocal:
         return {"status": "ok", "service": "product-service", "db_status": "connected"}
     else:
-        raise HTTPException(status_code=503, detail="Servicio inactivo: La conexión a la base de datos falló durante el arranque.")
+        raise HTTPException(status_code=503, detail="Servicio inactivo: La conexión a la base de datos falló.")
 
-# ----------------------------------------------------
-# 6. Endpoints de tu API (CRUD de Productos)
-#    ... (El resto de tus endpoints CRUD RF01, RF02, etc. van aquí) ...
-# ----------------------------------------------------
+# --- Endpoints del Menú (de tu compañero) ---
+@app.get("/menu", tags=["Menú"], summary="Ver el menú completo.")
+def ver_menu():
+    return {"Menú": menu}
+
+@app.post("/menu", tags=["Menú"], summary="Agregar un nuevo producto al menú.")
+def agregar_producto(plato: ProductoAPI):
+    if plato.nombre in menu:
+        raise HTTPException(status_code=400, detail="El producto ya existe en el menú.")
+    menu[plato.nombre] = plato.precio
+    return {"mensaje": f"Producto '{plato.nombre}' agregado correctamente al menú."}
+
+@app.delete("/menu/{nombre}", tags=["Menú"], summary="Eliminar un producto del menú por su nombre.")
+def eliminar_producto(nombre: str):
+    if nombre not in menu:
+        raise HTTPException(status_code=404, detail="El producto no existe en el menú.")
+    del menu[nombre]
+    return {"mensaje": f"Producto '{nombre}' eliminado correctamente del menú."}
+
+# --- Endpoints de Pedidos (de tu compañero) ---
+@app.post("/pedidos", tags=["Pedidos"], summary="Crear un nuevo pedido.")
+def crear_pedido(pedido: PedidoAPI):
+    global pedidos_id_counter
+    for producto in pedido.productos:
+        if producto not in menu:
+            raise HTTPException(status_code=400, detail=f"El producto '{producto}' no existe en el menú.")
+    
+    nuevo_pedido = {
+        "id": pedidos_id_counter,
+        "productos": pedido.productos, # CORREGIDO: Usaba una variable incorrecta aquí
+        "estado": "pendiente"
+    }
+    pedidos.append(nuevo_pedido)
+    pedidos_id_counter += 1
+    return {"mensaje": "Pedido creado correctamente.", "pedido": nuevo_pedido}
+
+@app.get("/pedidos", tags=["Pedidos"], summary="Ver todos los pedidos.")
+def ver_pedidos():
+    return {"pedidos": pedidos}
+
+@app.get("/pedidos/{pedido_id}", tags=["Pedidos"], summary="Ver un pedido por su ID.")
+def ver_pedido(pedido_id: int):
+    for pedido in pedidos:
+        if pedido["id"] == pedido_id:
+            return {"pedido": pedido}
+    raise HTTPException(status_code=404, detail="Pedido no encontrado.")

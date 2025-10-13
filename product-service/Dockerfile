@@ -5,7 +5,6 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copia e instala las dependencias de Python
-# No se necesitan dependencias del sistema para PyMySQL
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -13,4 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Comando para correr la aplicación
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# AÑADIDO: La bandera '--reload' para desarrollo en tiempo real.
+# Esto le dice a Uvicorn que se reinicie automáticamente cuando los archivos .py cambien.
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
