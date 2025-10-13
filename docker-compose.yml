@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # ----------------------------------------------------
@@ -15,7 +15,14 @@ services:
       - ./product-service:/app # Para desarrollo en tiempo real
     depends_on:
       - db
-
+    
+    # 🚨 CORRECCIÓN CLAVE: Pasamos las variables de entorno a FastAPI
+    environment:
+      MYSQL_USER: easyadmin_user
+      MYSQL_PASSWORD: password_segura
+      MYSQL_DATABASE: easyadmin_db # Ajustado a 'easyadmin_db'
+      MYSQL_HOST: db               # ¡Clave! 'db' es el nombre del servicio de MySQL
+      
   # ----------------------------------------------------
   # 2. Base de Datos (MySQL) - ¡Tu elección!
   # ----------------------------------------------------
@@ -23,11 +30,11 @@ services:
     image: mysql:8.0
     container_name: mysql_db
     environment:
-      # Credenciales que usaremos en el código Python
-      MYSQL_ROOT_PASSWORD: password_segura
-      MYSQL_DATABASE: easyadmin_db
+      # Las variables que usa MySQL para inicializar la BD
+      MYSQL_ROOT_PASSWORD: root_password_segura # Contraseña para el usuario root (Docker la necesita)
       MYSQL_USER: easyadmin_user
       MYSQL_PASSWORD: password_segura
+      MYSQL_DATABASE: easyadmin_db # Ajustado a 'easyadmin_db'
     ports:
       - "3306:3306" # Puerto estándar de MySQL
     volumes:
