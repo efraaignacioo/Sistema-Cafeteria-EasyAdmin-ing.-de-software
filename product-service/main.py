@@ -15,7 +15,7 @@ from typing import List
 app = FastAPI(
     title="API de Cafetería - EasyAdmin",
     description="API para gestionar los productos y pedidos de la cafetería.",
-    version="1.1.0"
+    version="1.2.0" # Aumentamos la versión
 )
 
 # ----------------------------------------------------
@@ -41,11 +41,9 @@ class Product(Base):
     description = Column(String(255))
     price = Column(Float)
 
-### NUEVO ###
 class Order(Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True, index=True)
-    # Guardamos la lista de productos como un texto separado por comas
     items = Column(String(500)) 
     total = Column(Float)
     status = Column(String(50), default="pendiente")
@@ -67,9 +65,9 @@ class ProductResponse(ProductBase):
     class Config:
         from_attributes = True
 
-# ### NUEVO ### --- Modelos de Pedido ---
+# --- Modelos de Pedido ---
 class OrderBase(BaseModel):
-    items: List[str] # Esperamos una lista de nombres de productos
+    items: List[str]
 
 class OrderCreate(OrderBase):
     pass
@@ -82,6 +80,10 @@ class OrderResponse(BaseModel):
     class Config:
         from_attributes = True
 
+### NUEVO ### --- Modelo para Actualizar Estado ---
+class OrderStatusUpdate(BaseModel):
+    status: str
+
 # ----------------------------------------------------
 # 5. Lógica de Conexión y Sesión de la Base de Datos
 # ----------------------------------------------------
@@ -92,7 +94,7 @@ def startup_db_client():
     for attempt in range(max_attempts):
         try:
             engine = create_engine(DATABASE_URL)
-            Base.metadata.create_all(bind=engine) # Crea las tablas products Y orders
+            Base.metadata.create_all(bind=engine)
             SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
             print("product-service | ✅ Conexión a MySQL exitosa y tablas creadas.")
             return
@@ -117,7 +119,7 @@ def get_db():
 def health_check():
     return {"status": "ok"}
 
-# --- Endpoints del Menú (sin cambios) ---
+# --- Endpoints del Menú ---
 @app.get("/menu", tags=["Menú"], response_model=List[ProductResponse])
 def ver_menu(db: Session = Depends(get_db)):
     return db.query(Product).all()
@@ -130,72 +132,57 @@ def agregar_producto(producto: ProductCreate, db: Session = Depends(get_db)):
     db.refresh(db_product)
     return db_product
 
-@app.delete("/menu/{product_id}", tags=["Menú"], summary="Eliminar un producto del menú por su ID.")
+@app.delete("/menu/{product_id}", tags=["Menú"])
 def eliminar_producto(product_id: int, db: Session = Depends(get_db)):
     product_to_delete = db.query(Product).filter(Product.id == product_id).first()
     if not product_to_delete:
         raise HTTPException(status_code=404, detail=f"Producto con ID {product_id} no encontrado.")
-    
     db.delete(product_to_delete)
     db.commit()
-    return {"mensaje": f"Producto '{product_to_delete.name}' eliminado correctamente del menú."}
+    return {"mensaje": f"Producto '{product_to_delete.name}' eliminado correctamente."}
 
-# ### MODIFICADO ### --- Endpoints de Pedidos (Ahora con Base de Datos) ---
-
-@app.post("/pedidos", tags=["Pedidos"], summary="Crear un nuevo pedido.", response_model=OrderResponse, status_code=201)
+# --- Endpoints de Pedidos ---
+@app.post("/pedidos", tags=["Pedidos"], response_model=OrderResponse, status_code=201)
 def crear_pedido(pedido: OrderCreate, db: Session = Depends(get_db)):
-    """
-    Crea un nuevo pedido.
-    1. Valida que todos los productos existan en el menú.
-    2. Calcula el precio total.
-    3. Guarda el pedido en la base de datos.
-    """
     total_price = 0.0
-    
-    # 1. Validar productos y calcular total
     for product_name in pedido.items:
         product_db = db.query(Product).filter(Product.name == product_name).first()
         if not product_db:
             raise HTTPException(status_code=404, detail=f"El producto '{product_name}' no existe en el menú.")
         total_price += product_db.price
-        
-    # 2. Crear el objeto del pedido para la base de datos
-    # Convertimos la lista de items en un solo string para guardarlo
     items_as_string = ", ".join(pedido.items)
-    
-    db_order = Order(
-        items=items_as_string,
-        total=total_price
-    )
-    
-    # 3. Guardar en la base de datos
+    db_order = Order(items=items_as_string, total=total_price)
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
+    return OrderResponse(id=db_order.id, items=db_order.items.split(", "), total=db_order.total, status=db_order.status)
 
-    # Para la respuesta, volvemos a convertir el string en una lista
-    response_order = OrderResponse(
-        id=db_order.id,
-        items=db_order.items.split(", "),
-        total=db_order.total,
-        status=db_order.status
-    )
-
-    return response_order
-
-@app.get("/pedidos", tags=["Pedidos"], summary="Ver todos los pedidos.", response_model=List[OrderResponse])
+@app.get("/pedidos", tags=["Pedidos"], response_model=List[OrderResponse])
 def ver_pedidos(db: Session = Depends(get_db)):
-    """Obtiene todos los pedidos de la base de datos."""
     orders_db = db.query(Order).all()
-    # Convertimos cada pedido de la BD al formato de respuesta
     response_orders = []
     for order in orders_db:
-        response_orders.append(
-            OrderResponse(
-                id=order.id,
-                items=order.items.split(", "),
-                total=order.total,
-                status=order.status
-            )
-        )
+        response_orders.append(OrderResponse(id=order.id, items=order.items.split(", "), total=order.total, status=order.status))
     return response_orders
+
+### NUEVO ### --- Endpoint para Actualizar Estado del Pedido ---
+@app.put("/pedidos/{order_id}/estado", tags=["Pedidos"], summary="Actualizar el estado de un pedido.", response_model=OrderResponse)
+def actualizar_estado_pedido(order_id: int, status_update: OrderStatusUpdate, db: Session = Depends(get_db)):
+    """
+    Busca un pedido por su ID y actualiza su estado.
+    Estados posibles: 'pendiente', 'en preparación', 'listo', 'entregado', 'cancelado'.
+    """
+    # 1. Buscar el pedido en la base de datos
+    order_db = db.query(Order).filter(Order.id == order_id).first()
+    if not order_db:
+        raise HTTPException(status_code=404, detail=f"Pedido con ID {order_id} no encontrado.")
+        
+    # 2. Actualizar el estado
+    order_db.status = status_update.status
+    
+    # 3. Guardar los cambios en la base de datos
+    db.commit()
+    db.refresh(order_db)
+    
+    # 4. Devolver la respuesta actualizada
+    return OrderResponse(id=order_db.id, items=order_db.items.split(", "), total=order_db.total, status=order_db.status)
