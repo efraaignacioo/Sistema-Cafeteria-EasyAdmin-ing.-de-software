@@ -11,8 +11,8 @@ services:
     container_name: product-service
     ports:
       - "8000:8000" # Acceso al API desde el navegador
-    #volumes:
-     # - ./product-service:/app # Para desarrollo en tiempo real
+    volumes:
+      - ./product-service:/app # Para desarrollo en tiempo real
     depends_on:
       - db
     
