@@ -261,6 +261,7 @@ def crear_pedido(pedido_in: OrderCreate, db: Session = Depends(get_db)):
 
 @app.get("/pedidos", tags=["Pedidos"], response_model=List[OrderResponse])
 def ver_pedidos(db: Session = Depends(get_db)):
+<<<<<<< Updated upstream
     """Obtiene la lista completa de pedidos desde la base de datos."""
     return db.query(Order).all()
 
@@ -272,4 +273,20 @@ def ver_pedido_por_id(order_id: int, db: Session = Depends(get_db)):
     if not order:
         raise HTTPException(status_code=404, detail=f"Pedido con ID {order_id} no encontrado.")
     return order
+>>>>>>> Stashed changes
+=======
+    """Obtiene todos los pedidos de la base de datos."""
+    orders_db = db.query(Order).all()
+    # Convertimos cada pedido de la BD al formato de respuesta
+    response_orders = []
+    for order in orders_db:
+        response_orders.append(
+            OrderResponse(
+                id=order.id,
+                items=order.items.split(", "),
+                total=order.total,
+                status=order.status
+            )
+        )
+    return response_orders
 >>>>>>> Stashed changes
