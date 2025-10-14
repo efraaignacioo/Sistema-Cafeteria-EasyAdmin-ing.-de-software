@@ -1,6 +1,6 @@
 fastapi
-uvicorn[standard]
-# ORM (para MySQL)
+uvicorn
 sqlalchemy
-PyMySQL  # CAMBIO CLAVE
+pymysql
+pydantic
 cryptography

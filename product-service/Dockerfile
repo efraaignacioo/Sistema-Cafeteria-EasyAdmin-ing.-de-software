@@ -5,9 +5,17 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copia e instala las dependencias de Python
+<<<<<<< Updated upstream
 # No se necesitan dependencias del sistema para PyMySQL
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+=======
+# Copia el archivo de requerimientos
+COPY ./requirements.txt /app/
+
+# Instala las dependencias
+RUN pip install --no-cache-dir -r /app/requirements.txt
+>>>>>>> Stashed changes
 
 # Copia el resto del código
 COPY . .
