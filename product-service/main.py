@@ -233,3 +233,5 @@ def generar_ticket(order_id: int, db: Session = Depends(get_db)):
         issued_at=order_db.created_at
     )
     return ticket
+
+#pruebabisente
