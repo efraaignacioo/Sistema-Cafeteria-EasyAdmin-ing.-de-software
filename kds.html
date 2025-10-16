@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KDS - EasyAdmin</title>
+    <link rel="stylesheet" href="kds.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="kds-container">
+        
+        <div class="kds-column">
+            <h2 class="column-title">Pendiente</h2>
+            <div id="columna-pendiente" class="card-container" data-status="pendiente">
+                </div>
+        </div>
+
+        <div class="kds-column">
+            <h2 class="column-title">En preparación</h2>
+            <div id="columna-preparacion" class="card-container" data-status="en preparación">
+                </div>
+        </div>
+
+        <div class="kds-column">
+            <h2 class="column-title">Listo</h2>
+            <div id="columna-listo" class="card-container" data-status="listo">
+                </div>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="kds.js"></script>
+
+</body>
+</html>

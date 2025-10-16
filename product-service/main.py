@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, field_validator
 from typing import List
 from datetime import datetime
+from fastapi.middleware.cors import CORSMiddleware #AAA
 
 # ----------------------------------------------------
 # 1. Creación de la Instancia de FastAPI
@@ -19,7 +20,14 @@ app = FastAPI(
     description="API para gestionar los productos y pedidos de la cafetería.",
     version="1.4.0" # Versión final con ticket
 )
-
+# --- Configuración de CORS ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite que CUALQUIER página web se conecte
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite todos los métodos (GET, POST, etc.)
+    allow_headers=["*"],  # Permite todas las cabeceras
+)
 # ----------------------------------------------------
 # 2. Configuración de la Base de Datos
 # ----------------------------------------------------
@@ -51,6 +59,7 @@ class Order(Base):
     status = Column(String(50), default="pendiente")
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
 
 # ----------------------------------------------------
 # 4. Modelos Pydantic
@@ -66,6 +75,7 @@ class ProductResponse(ProductBase):
 
 class OrderBase(BaseModel):
     items: List[str]
+    
 class OrderCreate(OrderBase): pass
 class OrderResponse(BaseModel):
     id: int

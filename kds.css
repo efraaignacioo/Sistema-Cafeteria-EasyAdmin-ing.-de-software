@@ -1,0 +1,76 @@
+body {
+    background-color: #F9F5EF; /* Mismo fondo crema */
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 20px;
+    overflow: hidden; /* Evita el scroll general */
+}
+
+.kds-container {
+    display: flex;
+    gap: 20px; /* Espacio entre columnas */
+    height: calc(100vh - 40px); /* Ocupa toda la altura de la pantalla */
+}
+
+.kds-column {
+    flex: 1; /* Cada columna ocupa el mismo espacio */
+    background-color: #e9e2d8; /* Un tono un poco más oscuro para las columnas */
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.column-title {
+    font-size: 24px;
+    font-weight: 700;
+    padding: 20px;
+    margin: 0;
+    color: #333;
+    border-bottom: 2px solid #dcd5cb;
+}
+
+.card-container {
+    padding: 15px;
+    flex-grow: 1;
+    overflow-y: auto; /* Permite scroll dentro de cada columna si hay muchos pedidos */
+}
+
+.order-card {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    cursor: grab; /* Indica que se puede arrastrar */
+    border-left: 8px solid #8A9A5B; /* Borde verde característico */
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.order-id {
+    color: #333;
+}
+
+.table-number {
+    color: #8A9A5B;
+}
+
+.item-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 16px;
+    color: #555;
+}
+
+/* Estilo fantasma para cuando se arrastra un elemento */
+.sortable-ghost {
+    opacity: 0.4;
+    background: #c8e6c9;
+}

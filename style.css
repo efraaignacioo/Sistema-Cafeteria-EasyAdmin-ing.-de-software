@@ -1,0 +1,78 @@
+/* --- Estilos generales para la página --- */
+body {
+    display: flex; /* Centra el contenido */
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #e0e0e0; /* Fondo gris para resaltar */
+    font-family: 'Poppins', sans-serif; /* Tipo de letra */
+}
+
+/* --- La pantalla del celular --- */
+.mobile-screen {
+    width: 375px;
+    height: 812px;
+    background-color: #F9F5EF; /* Color crema del fondo */
+    border-radius: 40px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex; /* Organiza los elementos internos */
+    flex-direction: column; /* Pone los elementos uno encima de otro */
+}
+
+/* --- El contenedor principal del menú --- */
+main {
+    flex-grow: 1; /* Hace que esta sección ocupe todo el espacio disponible */
+    overflow-y: auto; /* Agrega una barra de scroll si el menú es muy largo */
+}
+
+/* --- Estilo para los títulos de categoría (ej: "Cafés") --- */
+.category h2 {
+    font-size: 28px;
+    color: #333;
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
+.category:first-child h2 {
+    margin-top: 0; /* Quita el espacio extra del primer título */
+}
+
+/* --- Estilo para cada producto del menú --- */
+.menu-item {
+    display: flex;
+    justify-content: space-between; /* Pone el nombre a la izquierda y el botón a la derecha */
+    align-items: center;
+    background-color: #FFFFFF; /* Fondo blanco */
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* --- Estilo para el botón "+" --- */
+.add-button {
+    background-color: #F0F0F0;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 22px;
+    cursor: pointer; /* Muestra una manito al pasar el mouse */
+}
+
+/* --- Estilo para el botón verde de abajo --- */
+.view-cart-button {
+    width: 100%;
+    padding: 18px;
+    background-color: #8A9A5B; /* Verde olivo */
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 18px;
+    font-weight: 500;
+    cursor: pointer;
+}
