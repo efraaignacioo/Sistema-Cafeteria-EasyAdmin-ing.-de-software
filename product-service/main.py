@@ -1,36 +1,32 @@
 # product-service/main.py
+# Este microservicio ahora solo se encarga de la gestión de productos.
 
 import os
 import time
-import json
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, func
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from typing import List
-from datetime import datetime
-from fastapi.middleware.cors import CORSMiddleware #AAA
+from fastapi.middleware.cors import CORSMiddleware
 
-# ----------------------------------------------------
-# 1. Creación de la Instancia de FastAPI
-# ----------------------------------------------------
+# --- Instancia de FastAPI para el servicio de productos ---
 app = FastAPI(
-    title="API de Cafetería - EasyAdmin",
-    description="API para gestionar los productos y pedidos de la cafetería.",
-    version="1.4.0" # Versión final con ticket
+    title="API de Productos - EasyAdmin",
+    description="Microservicio para gestionar el menú de la cafetería.",
+    version="2.0.0" # Versión 2.0 por refactorización
 )
-# --- Configuración de CORS ---
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite que CUALQUIER página web se conecte
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos los métodos (GET, POST, etc.)
-    allow_headers=["*"],  # Permite todas las cabeceras
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# ----------------------------------------------------
-# 2. Configuración de la Base de Datos
-# ----------------------------------------------------
+
+# --- Configuración de la Base de Datos (compartida) ---
 DB_USER = os.getenv("MYSQL_USER", "easyadmin_user")
 DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "password_segura")
 DB_HOST = os.getenv("MYSQL_HOST", "mysql_db")
@@ -41,9 +37,7 @@ Base = declarative_base()
 engine = None
 SessionLocal = None
 
-# ----------------------------------------------------
-# 3. Modelos SQLAlchemy
-# ----------------------------------------------------
+# --- Modelos SQLAlchemy ---
 class Product(Base):
     __tablename__ = "products"
     id = Column(Integer, primary_key=True, index=True)
@@ -51,19 +45,7 @@ class Product(Base):
     description = Column(String(255))
     price = Column(Float)
 
-class Order(Base):
-    __tablename__ = "orders"
-    id = Column(Integer, primary_key=True, index=True)
-    items = Column(String(500))
-    total = Column(Float)
-    status = Column(String(50), default="pendiente")
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-
-# ----------------------------------------------------
-# 4. Modelos Pydantic
-# ----------------------------------------------------
+# --- Modelos Pydantic ---
 class ProductBase(BaseModel):
     name: str
     description: str
@@ -73,99 +55,32 @@ class ProductResponse(ProductBase):
     id: int
     class Config: from_attributes = True
 
-class OrderBase(BaseModel):
-    items: List[str]
-    
-class OrderCreate(OrderBase): pass
-class OrderResponse(BaseModel):
-    id: int
-    items: List[str]
-    total: float
-    status: str
-    created_at: datetime
-    updated_at: datetime
-    class Config: from_attributes = True
-    
-    @field_validator('items', mode='before')
-    @classmethod
-    def split_items_string(cls, v):
-        if isinstance(v, str):
-            return [item.strip() for item in v.split(',')]
-        return v
-
-class OrderStatusUpdate(BaseModel):
-    status: str
-
-class TicketResponse(BaseModel):
-    order_id: int
-    items: List[str]
-    total: float
-    issued_at: datetime
-
-# ----------------------------------------------------
-# 5. Lógica de Conexión, Sesión y WebSockets
-# ----------------------------------------------------
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-
-    async def broadcast(self, data: dict):
-        message = json.dumps(data, default=str)
-        for connection in self.active_connections:
-            await connection.send_text(message)
-manager = ConnectionManager()
-
+# --- Lógica de Conexión y Sesión ---
 @app.on_event("startup")
 def startup_db_client():
     global engine, SessionLocal
-    max_attempts = 10
-    for attempt in range(max_attempts):
+    for attempt in range(10):
         try:
             engine = create_engine(DATABASE_URL)
-            with engine.connect():
-                Base.metadata.create_all(bind=engine)
+            with engine.connect(): Base.metadata.create_all(bind=engine)
             SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            print("✅ Conexión a MySQL exitosa.")
+            print("✅ [product-service] Conexión a MySQL exitosa.")
             return
         except Exception as e:
-            print(f"⚠️ Fallo en conexión, reintentando... ({e})")
+            print(f"⚠️ [product-service] Fallo en conexión, reintentando... ({e})")
             time.sleep(5)
-            if attempt == max_attempts - 1:
-                raise e
+            if attempt == 9: raise e
 
 def get_db():
-    if SessionLocal is None:
-        raise HTTPException(status_code=500, detail="DB no disponible.")
+    if SessionLocal is None: raise HTTPException(status_code=500, detail="DB no disponible.")
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 
-@app.websocket("/ws/kds")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-# ----------------------------------------------------
-# 6. Endpoints de la API
-# ----------------------------------------------------
+# --- Endpoints de la API de Productos ---
 @app.get("/health", tags=["Salud del Servicio"])
-def health_check():
-    return {"status": "ok"}
+def health_check(): return {"status": "ok", "service": "product-service"}
 
-# --- Endpoints del Menú ---
 @app.get("/menu", tags=["Menú"], response_model=List[ProductResponse])
 def ver_menu(db: Session = Depends(get_db)):
     return db.query(Product).all()
@@ -187,61 +102,3 @@ def eliminar_producto(product_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"mensaje": f"Producto '{product_to_delete.name}' eliminado."}
 
-# --- Endpoints de Pedidos ---
-@app.post("/pedidos", tags=["Pedidos"], response_model=OrderResponse, status_code=201)
-async def crear_pedido(pedido: OrderCreate, db: Session = Depends(get_db)):
-    total_price = 0.0
-    for name in pedido.items:
-        product = db.query(Product).filter(Product.name == name).first()
-        if not product:
-            raise HTTPException(status_code=404, detail=f"Producto '{name}' no existe.")
-        total_price += product.price
-    
-    db_order = Order(items=", ".join(pedido.items), total=total_price)
-    db.add(db_order)
-    db.commit()
-    db.refresh(db_order)
-    
-    response_order = OrderResponse.model_validate(db_order)
-    message = {"type": "new_order", "data": response_order.model_dump()}
-    await manager.broadcast(message)
-    
-    return response_order
-
-@app.get("/pedidos", tags=["Pedidos"], response_model=List[OrderResponse])
-def ver_pedidos(db: Session = Depends(get_db)):
-    return db.query(Order).all()
-
-@app.put("/pedidos/{order_id}/estado", tags=["Pedidos"], response_model=OrderResponse)
-async def actualizar_estado_pedido(order_id: int, status_update: OrderStatusUpdate, db: Session = Depends(get_db)):
-    order_db = db.query(Order).filter(Order.id == order_id).first()
-    if not order_db:
-        raise HTTPException(status_code=404, detail=f"Pedido {order_id} no encontrado.")
-    
-    order_db.status = status_update.status
-    db.commit()
-    db.refresh(order_db)
-    
-    response_order = OrderResponse.model_validate(order_db)
-    message = {"type": "status_update", "data": response_order.model_dump()}
-    await manager.broadcast(message)
-    
-    return response_order
-
-@app.get("/pedidos/{order_id}/ticket", tags=["Pedidos"], summary="Generar un ticket básico de pedido.", response_model=TicketResponse)
-def generar_ticket(order_id: int, db: Session = Depends(get_db)):
-    order_db = db.query(Order).filter(Order.id == order_id).first()
-    if not order_db:
-        raise HTTPException(status_code=404, detail=f"Pedido con ID {order_id} no encontrado.")
-
-    items_list = OrderResponse.model_validate(order_db).items
-    
-    ticket = TicketResponse(
-        order_id=order_db.id,
-        items=items_list,
-        total=order_db.total,
-        issued_at=order_db.created_at
-    )
-    return ticket
-
-#pruebabisente
