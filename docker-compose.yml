@@ -1,6 +1,6 @@
 services:
   # ----------------------------------------------------
-  # 1. Microservicio de Productos
+  # 1. Microservicio de Productos (Puerto 8000)
   # ----------------------------------------------------
   product-service:
     build:
@@ -20,7 +20,7 @@ services:
       MYSQL_HOST: db
       
   # ----------------------------------------------------
-  # 2. Microservicio de Pedidos
+  # 2. Microservicio de Pedidos (Puerto 8001)
   # ----------------------------------------------------
   order-service:
     build:
@@ -40,7 +40,27 @@ services:
       MYSQL_HOST: db
 
   # ----------------------------------------------------
-  # 3. Base de Datos
+  # 3. Microservicio de Autenticación (Puerto 8002) ¡NUEVO!
+  # ----------------------------------------------------
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile  # <-- Asegúrate de que tu archivo se llame 'Dockerfile' (con D mayúscula)
+    container_name: auth-service
+    ports:
+      - "8002:8000" # Exponemos este servicio en el puerto 8002
+    volumes:
+      - ./auth-service:/app
+    depends_on:
+      - db
+    environment:
+      MYSQL_USER: easyadmin_user
+      MYSQL_PASSWORD: password_segura
+      MYSQL_DATABASE: easyadmin_db
+      MYSQL_HOST: db
+
+  # ----------------------------------------------------
+  # 4. Base de Datos (Sin cambios)
   # ----------------------------------------------------
   db:
     image: mysql:8.0
