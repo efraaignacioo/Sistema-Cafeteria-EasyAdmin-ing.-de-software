@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel
 from typing import List, Optional
@@ -19,7 +20,7 @@ from jose import JWTError, jwt
 app = FastAPI(
     title="API de Autenticación - EasyAdmin",
     description="Microservicio para registrar usuarios, gestionar roles y emitir tokens JWT.",
-    version="1.0.0"
+    version="1.1.0" # Versión con manejo de errores
 )
 app.add_middleware(
     CORSMiddleware,
@@ -27,7 +28,7 @@ app.add_middleware(
 )
 
 # --- Configuración de Seguridad (JWT) ---
-SECRET_KEY = "EASYADMIN_SUPER_SECRET_KEY_REPLACE_ME_LATER" # ¡Cambiar esto en producción!
+SECRET_KEY = "EASYADMIN_SUPER_SECRET_KEY_REPLACE_ME_LATER"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -50,7 +51,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True)
-    hashed_password = Column(String(255))
+    hashed_password = Column(String(100))
     role = Column(String(50)) # "admin", "cocinero", "cajero"
 
 # --- Modelos Pydantic ---
@@ -95,7 +96,7 @@ def startup_db_client():
                 raise e
 
 def get_db():
-    if SessionLocal is None: raise HTTPException(status_code=500, detail="DB no disponible.")
+    if SessionLocal is None: raise HTTPException(status_code=503, detail="DB no disponible.")
     db = SessionLocal()
     try:
         yield db
@@ -111,7 +112,6 @@ def get_password_hash(password):
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-# ### Esta función SÍ es síncrona, está bien ###
 def authenticate_user(username: str, password: str, db: Session):
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -132,32 +132,39 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 # --- Endpoints de la API ---
 @app.post("/auth/register", response_model=UserResponse, status_code=201, tags=["Autenticación"])
-# ### CORREGIDO: Quitado 'async def' ###
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.username == user.username).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    
-    hashed_password = get_password_hash(user.password)
-    new_user = User(username=user.username, hashed_password=hashed_password, role=user.role)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
+    try:
+        db_user = db.query(User).filter(User.username == user.username).first()
+        if db_user:
+            raise HTTPException(status_code=400, detail="Username already registered")
+        
+        hashed_password = get_password_hash(user.password)
+        new_user = User(username=user.username, hashed_password=hashed_password, role=user.role)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error en la base de datos al registrar: {str(e)}")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 @app.post("/auth/token", response_model=Token, tags=["Autenticación"])
-# ### CORREGIDO: Quitado 'async def' ###
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = authenticate_user(form_data.username, form_data.password, db)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        user = authenticate_user(form_data.username, form_data.password, db)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username, "role": user.role}, expires_delta=access_token_expires
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username, "role": user.role}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
+        return {"access_token": access_token, "token_type": "bearer"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")

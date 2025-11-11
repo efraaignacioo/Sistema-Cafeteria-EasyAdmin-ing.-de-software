@@ -9,7 +9,8 @@ from jose import JWTError, jwt
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
-from pydantic import BaseModel
+# --- MODIFICADO: Importamos field_validator ---
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -92,6 +93,18 @@ class ProductBase(BaseModel):
     name: str
     description: str
     price: float
+
+    # --- NUEVO: Validador para la Restricción RF02 ---
+    @field_validator('price')
+    @classmethod
+    def validate_price(cls, v):
+        """Valida que el precio sea un número positivo."""
+        if v <= 0:
+            # Esta es la restricción solicitada
+            raise ValueError("El precio debe ser un número positivo .")
+        return v
+    # --- FIN NUEVO ---
+
 class ProductCreate(ProductBase): pass
 class ProductResponse(ProductBase):
     id: int
@@ -139,6 +152,37 @@ def agregar_producto(producto: ProductCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_product)
     return db_product
+
+# --- NUEVO: Endpoint PUT para implementar RF02 ---
+@app.put("/menu/{product_id}", tags=["Menú"], response_model=ProductResponse,
+         dependencies=[Depends(required_role("admin"))])
+def actualizar_producto(product_id: int, producto_actualizado: ProductCreate, db: Session = Depends(get_db)):
+    """
+    Solo el Admin puede editar un producto existente (RF02).
+    Actualiza nombre, descripción y precio.
+    """
+    # 1. Buscar el producto en la base de datos
+    db_product = db.query(Product).filter(Product.id == product_id).first()
+
+    # 2. Si no existe, lanzar un error 404
+    if not db_product:
+        raise HTTPException(status_code=404, detail=f"Producto {product_id} no encontrado.")
+
+    # 3. Obtener los datos del body (ya validados por Pydantic, incluida la restricción de precio)
+    update_data = producto_actualizado.model_dump()
+
+    # 4. Actualizar los campos del producto en la BD
+    for key, value in update_data.items():
+        setattr(db_product, key, value) # Actualiza name, description, price
+
+    # 5. Guardar los cambios
+    db.commit()
+    db.refresh(db_product)
+    
+    # 6. Retornar el producto actualizado (Cumple Criterio de Aceptación)
+    return db_product
+# --- FIN NUEVO ---
+
 
 # PROTEGIDO: Solo rol 'admin' puede eliminar productos
 @app.delete("/menu/{product_id}", tags=["Menú"],
