@@ -91,24 +91,38 @@ class Product(Base):
 # --- Modelos Pydantic ---
 class ProductBase(BaseModel):
     name: str
-    description: str
-    price: float
+    description: Optional[str] = None  # <-- Hacemos la descripción opcional
+    price: Optional[float] = None    # <-- Hacemos el precio opcional
 
-    # --- NUEVO: Validador para la Restricción RF02 ---
-    @field_validator('price')
-    @classmethod
-    def validate_price(cls, v):
-        """Valida que el precio sea un número positivo."""
-        if v <= 0:
-            # Esta es la restricción solicitada
-            raise ValueError("El precio debe ser un número positivo .")
-        return v
+   
     # --- FIN NUEVO ---
 
-class ProductCreate(ProductBase): pass
+class ProductCreate(ProductBase):
+    class ProductCreate(ProductBase):
+    # PEGA EL VALIDADOR AQUÍ
+        @field_validator('price')
+        @classmethod
+        def validate_price(cls, v):
+            """
+            Valida que el precio, si existe, sea un número positivo.
+            Permite que el precio sea 'None' (nulo).
+            """
+            # Si el precio es None (nulo), lo permitimos y continuamos.
+            if v is None:
+                # OJO: Al CREAR, no queremos precios nulos.
+                # Así que si es nulo, lanzamos un error.
+                raise ValueError("El precio es un campo requerido al crear.")
+
+            # Si el precio NO es None, entonces validamos que sea positivo.
+            if v <= 0:
+                raise ValueError("El precio debe ser un número positivo.")
+
+                return v
+
 class ProductResponse(ProductBase):
     id: int
     class Config: from_attributes = True
+
 
 # --- Lógica de Conexión y Sesión ---
 @app.on_event("startup")

@@ -4,7 +4,7 @@
 import os
 import time
 import json
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Query
 # IMPORTACIONES DE SEGURIDAD
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -205,12 +205,55 @@ def get_db():
     try: yield db
     finally: db.close()
 
-@app.websocket("/ws/kds")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+# --- LECTOR DE TOKENS PARA WEBSOCKET ---
+# No podemos usar "Depends" en WebSockets, así que creamos una función
+# helper que hace el mismo trabajo que get_current_user_data.
+def verify_token_for_websocket(token: str) -> TokenData:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Credenciales inválidas o token expirado para WebSocket",
+    )
     try:
-        while True: await websocket.receive_text()
-    except WebSocketDisconnect: manager.disconnect(websocket)
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        role: str = payload.get("role")
+        if username is None or role is None:
+            raise credentials_exception
+        token_data = TokenData(username=username, role=role)
+    except JWTError:
+        raise credentials_exception
+    return token_data
+# --- FIN LECTOR ---
+
+
+@app.websocket("/ws/kds")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    token: str = Query(...)  # <-- (Paso A) Leemos el token de la URL
+):
+    try:
+        # --- (Paso B) Validamos el token ---
+        token_data = verify_token_for_websocket(token)
+        
+        # --- (Paso C) Verificamos el rol ---
+        # Solo "admin" o "cocinero" pueden conectarse al KDS
+        if token_data.role not in ["admin", "cocinero"]:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Rol no autorizado")
+            return
+
+        # --- (Paso D) Si todo es válido, nos conectamos ---
+        await manager.connect(websocket)
+        print(f"KDS conectado: {token_data.username} (Rol: {token_data.role})") # Log de éxito
+        
+        while True:
+            await websocket.receive_text()
+            
+    except HTTPException:
+        # Si el token es inválido, cerramos la conexión
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Token inválido o expirado")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        print("KDS desconectado.")
 
 # --- Endpoints de la API de Pedidos (MODIFICADOS) ---
 @app.get("/health", tags=["Salud del Servicio"])
@@ -259,9 +302,9 @@ def ver_pedidos(db: Session = Depends(get_db)):
     return db.query(Order).all()
 
 # --- NUEVO: Endpoint para RF18 (Ver historial de un pedido) ---
-@app.get("/pedidos/{order_id}", tags=["Pedidos"], response_model=OrderResponse,
-         dependencies=[Depends(required_roles(["admin", "cajero"]))])
-def ver_detalle_pedido(order_id: int, db: Session = Depends(get_db)):
+@app.get("/pedidos", tags=["Pedidos"], response_model=List[OrderResponse],
+         dependencies=[Depends(required_roles(["admin", "cocinero"]))])
+def ver_pedidos(db: Session = Depends(get_db)):
     """
     (RF18) Permite al cajero o admin ver los detalles de un pedido específico 
     por su ID para verificar pagos o historial.

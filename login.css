@@ -1,0 +1,80 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #F9F5EF; /* Mismo fondo crema */
+    font-family: 'Poppins', sans-serif;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 30px;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    box-sizing: border-box;
+}
+
+#login-form h2 {
+    text-align: center;
+    color: #333;
+    font-size: 28px;
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.brand-name {
+    display: block;
+    text-align: center;
+    color: #8A9A5B; /* Verde olivo */
+    font-weight: 500;
+    font-size: 18px;
+    margin-bottom: 30px;
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #555;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px 15px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    box-sizing: border-box; /* Asegura que el padding no afecte el ancho */
+}
+
+.login-button {
+    width: 100%;
+    padding: 15px;
+    background-color: #8A9A5B; /* Verde olivo */
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.login-button:hover {
+    background-color: #7a8a4f;
+}
+
+#error-message {
+    margin-top: 20px;
+    text-align: center;
+    color: #D32F2F; /* Rojo para errores */
+    font-weight: 500;
+}
