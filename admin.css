@@ -1,0 +1,287 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f7f6;
+    margin: 0;
+    padding: 0;
+}
+header {
+    background-color: #333;
+    color: white;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+#logout-button {
+    background-color: #D32F2F;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+.card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    padding: 25px;
+}
+.card h2 {
+    margin-top: 0;
+    color: #8A9A5B; /* Verde olivo */
+}
+.button-link {
+    display: inline-block;
+    background-color: #8A9A5B;
+    color: white;
+    padding: 10px 15px;
+    text-decoration: none;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+/* --- Estilos para el Formulario de Registro --- */
+#register-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+.form-group label {
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+}
+.form-group input,
+.form-group select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+}
+#register-message {
+    font-weight: bold;
+    text-align: center;
+    margin: 10px 0 0 0;
+}
+#register-message.success {
+    color: green;
+}
+#register-message.error {
+    color: red;
+}
+
+/* --- Estilos para la Gestión de Menú --- */
+#product-list-container {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 50vh; /* Límite de altura */
+    overflow-y: auto; /* Scroll si es muy largo */
+}
+.product-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 8px;
+}
+.product-item-info {
+    font-size: 16px;
+}
+.product-item-info strong {
+    color: #333;
+}
+.product-item-info span {
+    color: #555;
+    margin-left: 10px;
+}
+.delete-product-button {
+    background-color: #D32F2F; /* Rojo */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 20px 0;
+}
+.edit-product-button {
+    background-color: #1976D2; /* Azul */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 5px; /* Espacio entre botones */
+}
+.product-item-actions {
+    display: flex;
+}
+
+/* --- Estilos para el Pop-up (Modal) --- */
+.modal-overlay {
+    position: fixed; /* Se queda fijo en la pantalla */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* Fondo oscuro semitransparente */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Se pone encima de todo */
+}
+.modal {
+    background-color: white;
+    padding: 30px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    position: relative;
+}
+.close-button {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #aaa;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+.close-button:hover {
+    color: #333;
+}
+.modal h2 {
+    margin-top: 0;
+    color: #8A9A5B;
+}
+
+/* Clase para ocultar y mostrar el modal */
+.hidden {
+    display: none;
+}
+
+/* --- Estilos para la Gestión de Pedidos (Admin) --- */
+#admin-order-list {
+    max-height: 50vh; /* Límite de altura */
+    overflow-y: auto; /* Scroll si es muy largo */
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+.order-card-admin {
+    border: 1px solid #ddd;
+    border-left: 8px solid #8A9A5B;
+    border-radius: 8px;
+    padding: 15px;
+    background: #fafafa;
+    position: relative; /* <-- ¡NUEVO! Para posicionar el botón 'x' */
+}
+.order-card-admin.pagado {
+    border-left-color: #4CAF50; /* Verde si está pagado */
+}
+.order-card-admin h3 { margin: 0 0 10px 0; font-size: 18px; }
+.order-card-admin p { margin: 5px 0; font-size: 14px; }
+.order-card-admin .status {
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 12px;
+    color: white;
+    display: inline-block;
+}
+/* Colores para cada estado */
+.status.pendiente { background-color: #f44336; }
+.status.en-preparacion { background-color: #FF9800; }
+.status.listo { background-color: #2196F3; }
+.status.Pagado { background-color: #4CAF50; }
+
+.order-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+.pay-button {
+    background-color: #4CAF50; /* Verde Pago */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.receipt-button {
+    background-color: #607D8B; /* Gris */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+/* Estilos para botones deshabilitados */
+.pay-button:disabled,
+.receipt-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* --- Estilos para Reportes --- */
+#report-results {
+    margin-top: 20px;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 15px;
+    display: none; /* Oculto por defecto */
+}
+#report-results p {
+    margin: 5px 0;
+    font-size: 16px;
+}
+#report-results .report-total {
+    font-size: 20px;
+    font-weight: bold;
+    color: #4CAF50; /* Verde */
+}
+
+/* --- ¡NUEVO CSS AÑADIDO! --- */
+/* Estilo para el botón 'x' de ocultar */
+.hide-order-button {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #aaa;
+    cursor: pointer;
+    font-weight: bold;
+}
+.hide-order-button:hover {
+    color: #333;
+}

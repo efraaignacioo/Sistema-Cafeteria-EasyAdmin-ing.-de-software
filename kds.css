@@ -74,3 +74,9 @@ body {
     opacity: 0.4;
     background: #c8e6c9;
 }
+
+.table-number {
+    color: #8A9A5B; /* Verde olivo característico */
+    font-weight: 700;
+    font-size: 18px;
+}

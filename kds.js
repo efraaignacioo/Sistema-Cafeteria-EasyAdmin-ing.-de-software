@@ -89,13 +89,14 @@ function crearTarjetaPedido(pedido) {
     card.className = 'order-card';
     card.id = `pedido-${pedido.id}`;
     card.innerHTML = `
-        <div class="card-header">
-            <span class="order-id">Pedido #${pedido.id}</span>
-        </div>
-        <ul class="item-list">
-            ${itemsHTML}
-        </ul>
-    `;
+                <div class="card-header">
+                    <span class="order-id">Pedido #${pedido.id}</span>
+                    <span class="table-number">Mesa #${pedido.table_number}</span>
+                </div>
+                <ul class="item-list">
+                    ${itemsHTML}
+                </ul>
+            `;
 
     // Decide en qué columna poner la tarjeta
     const status = pedido.status.replace(' ', '-'); // "en preparación" -> "en-preparacion"

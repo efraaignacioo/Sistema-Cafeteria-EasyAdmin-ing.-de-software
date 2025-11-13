@@ -1,0 +1,149 @@
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: #f4f7f6;
+    margin: 0;
+    padding: 0;
+}
+header {
+    background-color: #333;
+    color: white;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+#logout-button {
+    background-color: #D32F2F;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.pos-layout {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    align-items: flex-start;
+}
+
+#create-order {
+    flex: 1; /* Ocupa 1/3 */
+}
+
+#order-list-container {
+    flex: 2; /* Ocupa 2/3 */
+}
+
+.card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    padding: 25px;
+}
+
+#order-list {
+    max-height: 70vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.order-card-cajero {
+    border: 1px solid #ddd;
+    border-left: 8px solid #8A9A5B; /* Verde olivo */
+    border-radius: 8px;
+    padding: 15px;
+    background: #fafafa;
+}
+
+.order-card-cajero.pagado {
+    border-left-color: #4CAF50; /* Verde si está pagado */
+}
+
+.order-card-cajero h3 {
+    margin: 0 0 10px 0;
+    font-size: 18px;
+}
+.order-card-cajero p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+.order-card-cajero .status {
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 12px;
+    color: white;
+    display: inline-block;
+}
+.status.pendiente { background-color: #f44336; }
+.status.en-preparacion { background-color: #FF9800; }
+.status.listo { background-color: #2196F3; }
+.status.Pagado { background-color: #4CAF50; }
+/* --- Estilos para el Formulario de Crear Pedido --- */
+#create-order-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+.form-group label {
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+}
+.form-group input,
+.form-group select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    margin-bottom: 5px; /* Espacio entre el select y el botón */
+}
+.form-group button {
+    padding: 10px;
+    background-color: #2196F3; /* Azul */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+}
+#cart-list {
+    list-style: none;
+    padding: 10px;
+    margin: 0;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    min-height: 50px;
+}
+#cart-list li {
+    padding: 5px;
+    border-bottom: 1px dashed #ccc;
+}
+#cart-list li:last-child {
+    border-bottom: none;
+}
+#create-order-message {
+    font-weight: bold;
+    text-align: center;
+    margin: 10px 0 0 0;
+}
+#create-order-message.success {
+    color: green;
+}
+#create-order-message.error {
+    color: red;
+}

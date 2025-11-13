@@ -129,11 +129,42 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+def get_current_user_data(token: str = Depends(oauth2_scheme)) -> TokenData:
+    """Decodifica y verifica la validez del token JWT."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Credenciales inválidas o token expirado",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        role: str = payload.get("role")
+        if username is None or role is None:
+            raise credentials_exception
+        token_data = TokenData(username=username, role=role)
+    except JWTError:
+        raise credentials_exception
+    return token_data
+
+def required_roles(roles: List[str]):
+    """Dependencia para verificar que el rol del usuario actual sea uno de los roles requeridos."""
+    def role_checker(token_data: TokenData = Depends(get_current_user_data)):
+        if token_data.role not in roles:
+            roles_str = " o ".join([f"'{r}'" for r in roles])
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permiso denegado. Rol '{token_data.role}' no autorizado. Se requiere rol {roles_str}.",
+            )
+        return token_data
+    return role_checker
 
 # --- Endpoints de la API ---
-@app.post("/auth/register", response_model=UserResponse, status_code=201, tags=["Autenticación"])
+@app.post("/auth/register", response_model=UserResponse, status_code=201, tags=["Autenticación"],
+         dependencies=[Depends(required_roles(["admin"]))]) 
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     try:
+        # ... (el resto de tu función) ...
         db_user = db.query(User).filter(User.username == user.username).first()
         if db_user:
             raise HTTPException(status_code=400, detail="Username already registered")
