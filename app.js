@@ -1,71 +1,119 @@
-// Esta línea espera a que toda la página HTML se cargue antes de ejecutar el código.
+// app.js COMPLETAMENTE ACTUALIZADO
+
+let carrito = [];
+let qrIdMesa = null; // Aquí guardaremos el código secreto de la mesa
+
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. DETECTAR MESA DESDE LA URL
+    // El navegador busca algo como: index.html?mesa=a1b2c3d4...
+    const params = new URLSearchParams(window.location.search);
+    qrIdMesa = params.get('mesa');
+
+    if (qrIdMesa) {
+        console.log("¡Cliente sentado en una mesa! QR ID:", qrIdMesa);
+        // Opcional: Podrías consultar al backend qué mesa es para mostrar "Estás en la Mesa 1"
+        // Pero para el pedido, solo necesitamos enviar el ID.
+    } else {
+        console.log("Modo visualización (Sin mesa)");
+    }
+
     cargarMenu();
+    setupCarrito();
 });
 
-// --- Función para cargar los productos desde tu API de Python ---
 function cargarMenu() {
-    // Esta es la URL de tu API. Si ejecutas Python en tu misma PC, esta URL debería funcionar.
-    const url = 'http://127.0.0.1:8000/menu';
-
-    // "fetch" es como "ir a buscar". Va a la URL que le dimos a buscar los datos.
-    fetch(url)
-        .then(response => {
-            // Cuando el servidor responde, primero revisamos si todo salió bien.
-            if (!response.ok) {
-                throw new Error('La respuesta del servidor no fue buena');
-            }
-            // Convertimos la respuesta (que es texto) a un formato que JavaScript entiende (JSON).
-            return response.json();
-        })
-        .then(productos => {
-            // ¡Aquí ya tenemos la lista de productos!
-            // Ahora llamamos a otra función para que los dibuje en la pantalla.
-            mostrarMenu(productos);
-        })
-        .catch(error => {
-            // Si algo sale mal (ej: el servidor de Python no está encendido), mostramos un error.
-            console.error('Hubo un problema al cargar el menú:', error);
-            const menuContainer = document.getElementById('menu-container');
-            menuContainer.innerHTML = '<p>Error al cargar el menú. Intenta más tarde.</p>';
-        });
+    fetch('http://127.0.0.1:8000/menu')
+        .then(r => r.json())
+        .then(productos => mostrarMenu(productos))
+        .catch(e => console.error(e));
 }
 
-// --- Función para dibujar los productos en la pantalla ---
 function mostrarMenu(productos) {
-    const menuContainer = document.getElementById('menu-container');
+    const container = document.getElementById('menu-container');
+    container.innerHTML = '<div class="category"><h2>Menú</h2></div>'; // Limpiar y poner título
+    const catDiv = container.querySelector('.category');
 
-    // Por ahora, para simplificar, asumimos que todos son de la categoría "Cafetería".
-    // Más adelante podemos agruparlos por "Cafés", "Pastelería", etc.
-    
-    const categoriaDiv = document.createElement('div');
-    categoriaDiv.className = 'category';
+    productos.forEach(prod => {
+        const item = document.createElement('div');
+        item.className = 'menu-item';
+        item.innerHTML = `
+            <span>${prod.name} ($${prod.price})</span>
+            <button class="add-button" data-name="${prod.name}">+</button>
+        `;
+        // Lógica de agregar al carrito
+        item.querySelector('.add-button').addEventListener('click', () => {
+            carrito.push(prod.name);
+            alert(`Añadido: ${prod.name}`);
+            actualizarBotonCarrito();
+        });
+        catDiv.appendChild(item);
+    });
+}
 
-    const titulo = document.createElement('h2');
-    titulo.textContent = 'Nuestro Menú';
-    categoriaDiv.appendChild(titulo);
+// --- LÓGICA DEL CARRITO ---
 
-    // Recorremos la lista de productos que nos dio el servidor.
-    productos.forEach(producto => {
-        // Por cada producto, creamos los elementos HTML.
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'menu-item';
+function setupCarrito() {
+    const viewCartBtn = document.querySelector('.view-cart-button');
+    const modal = document.getElementById('cart-modal');
+    const closeBtn = document.getElementById('close-cart');
+    const orderBtn = document.getElementById('place-order-btn');
+    const list = document.getElementById('cart-items-list');
+    const tableInfo = document.getElementById('table-info');
 
-        const nombreSpan = document.createElement('span');
-        nombreSpan.textContent = producto.name; // Usamos el nombre del producto
-
-        const boton = document.createElement('button');
-        boton.className = 'add-button';
-        boton.textContent = '+';
-
-        // Armamos la "tarjeta" del producto
-        itemDiv.appendChild(nombreSpan);
-        itemDiv.appendChild(boton);
-
-        // Agregamos la tarjeta completa a la categoría
-        categoriaDiv.appendChild(itemDiv);
+    // Abrir Modal
+    viewCartBtn.addEventListener('click', () => {
+        modal.style.display = 'flex';
+        list.innerHTML = carrito.map(item => `<li>${item}</li>`).join('');
+        
+        if (qrIdMesa) {
+            tableInfo.textContent = "✅ Mesa detectada (QR Escaneado)";
+            orderBtn.disabled = false;
+            orderBtn.style.background = '#8A9A5B';
+            orderBtn.textContent = "¡Pedir!";
+        } else {
+            tableInfo.textContent = "⚠️ Escanea un QR para pedir";
+            orderBtn.disabled = true;
+            orderBtn.style.background = '#ccc';
+            orderBtn.textContent = "Solo visualización";
+        }
     });
 
-    // Finalmente, agregamos toda la categoría a la pantalla.
-    menuContainer.appendChild(categoriaDiv);
+    // Cerrar Modal
+    closeBtn.addEventListener('click', () => modal.style.display = 'none');
+
+    // ENVIAR PEDIDO
+    orderBtn.addEventListener('click', async () => {
+        if (carrito.length === 0) return alert("El carrito está vacío");
+
+        const pedido = {
+            items: carrito,
+            table_number: 0, // No importa, el backend lo deduce del QR
+            qr_id: qrIdMesa  // ¡LA CLAVE! Enviamos el código secreto
+        };
+
+        try {
+            const res = await fetch('http://127.0.0.1:8001/pedidos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pedido)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                alert(`¡Pedido enviado con éxito!\nTu número de pedido es: #${data.id}`);
+                carrito = []; // Vaciar carrito
+                modal.style.display = 'none';
+            } else {
+                alert("Error al enviar pedido. Intenta nuevamente.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de conexión");
+        }
+    });
+}
+
+function actualizarBotonCarrito() {
+    const btn = document.querySelector('.view-cart-button');
+    btn.textContent = `Ver carrito (${carrito.length})`;
 }

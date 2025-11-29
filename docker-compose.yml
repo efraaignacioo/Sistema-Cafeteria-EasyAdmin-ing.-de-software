@@ -38,6 +38,8 @@ services:
       MYSQL_PASSWORD: password_segura
       MYSQL_DATABASE: easyadmin_db
       MYSQL_HOST: db
+      TELEGRAM_TOKEN: "8376718290:AAGSouC1sSzKcDdaS-o9t5ko8WA893nnJe8"
+      TELEGRAM_CHAT_ID: "-5034080605"
 
   # ----------------------------------------------------
   # 3. Microservicio de Autenticación (Puerto 8002) ¡NUEVO!
@@ -74,7 +76,16 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-
+# ----------------------------------------------------
+  # 5. Frontend (Servidor Web Nginx) - Puerto 5500
+  # ----------------------------------------------------
+  frontend:
+    image: nginx:alpine
+    container_name: easyadmin-frontend
+    ports:
+      - "5500:80"
+    volumes:
+      - .:/usr/share/nginx/html # Monta la carpeta actual en el servidor web
 # ----------------------------------------------------
 # Volúmenes para persistencia
 # ----------------------------------------------------

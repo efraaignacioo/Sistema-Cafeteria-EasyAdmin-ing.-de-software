@@ -1,5 +1,6 @@
-// --- Funciones de Seguridad Esenciales ---
+// admin.js
 
+// --- Funciones de Seguridad Esenciales ---
 function getToken() {
     return localStorage.getItem('accessToken');
 }
@@ -15,11 +16,11 @@ function parseJwt(token) {
     } catch (e) { return null; }
 }
 
-// --- Variables globales para los Modales ---
+// --- Variables globales ---
 let currentEditingId = null;
 let currentPayingOrderId = null; 
 
-// --- Lógica de la Página ---
+// --- Lógica Principal (Al cargar la página) ---
 document.addEventListener('DOMContentLoaded', () => {
     
     // 1. VERIFICAR SI EL USUARIO ES ADMIN
@@ -37,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     console.log('Acceso de Administrador concedido.');
 
-    
     // 2. LÓGICA DEL BOTÓN "CERRAR SESIÓN"
     const logoutButton = document.getElementById('logout-button');
     logoutButton.addEventListener('click', () => {
@@ -45,9 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Sesión cerrada.');
         window.location.href = 'login.html';
     });
-    
 
-    // 3. LÓGICA PARA REGISTRAR NUEVOS USUARIOS
+    // 3. GESTIÓN DE USUARIOS (REGISTRO)
     const registerForm = document.getElementById('register-form');
     const registerMessage = document.getElementById('register-message');
     registerForm.addEventListener('submit', async (e) => {
@@ -80,10 +79,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. LÓGICA PARA GESTIÓN DE MENÚ
+    // 4. GESTIÓN DE MENÚ (Carga inicial)
     cargarProductosAdmin();
     
-    // 5. LÓGICA PARA EL POP-UP (MODAL) DE "CREAR/EDITAR PRODUCTO"
+    // 5. MODALES DE PRODUCTOS
     const modalOverlay = document.getElementById('modal-overlay');
     const modalTitle = document.getElementById('modal-title');
     const createProductForm = document.getElementById('create-product-form');
@@ -91,7 +90,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const showCreateFormButton = document.getElementById('show-create-form-button');
     const closeModalButton = document.getElementById('close-modal-button');
 
-    function showProductModal() { modalOverlay.classList.remove('hidden'); }
     function hideProductModal() {
         modalOverlay.classList.add('hidden');
         createProductMessage.textContent = ''; 
@@ -103,24 +101,25 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEditingId = null; 
         modalTitle.textContent = 'Crear Nuevo Producto'; 
         createProductForm.reset(); 
-        showProductModal(); 
+        modalOverlay.classList.remove('hidden');
     });
     
     closeModalButton.addEventListener('click', hideProductModal);
     modalOverlay.addEventListener('click', (e) => {
-        if (e.target === modalOverlay) {
-            hideProductModal();
-        }
+        if (e.target === modalOverlay) hideProductModal();
     });
     
     createProductForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         createProductMessage.textContent = '';
         const token = getToken();
+        // Convertimos el precio a float, si falla pone 0 (el backend validará si es <= 0)
+        const priceVal = parseFloat(document.getElementById('product-price').value);
+        
         const productData = {
             name: document.getElementById('product-name').value,
             description: document.getElementById('product-description').value,
-            price: parseFloat(document.getElementById('product-price').value)
+            price: isNaN(priceVal) ? 0 : priceVal
         };
         try {
             let response;
@@ -142,9 +141,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!response.ok) {
                 const errorData = await response.json();
+                // Manejo de errores detallado de Pydantic
                 let errorMessage = errorData.detail || 'Error al guardar.';
-                if (Array.isArray(errorData.detail) && errorData.detail[0].msg) {
-                    errorMessage = errorData.detail[0].msg;
+                if (Array.isArray(errorData.detail)) {
+                    errorMessage = errorData.detail.map(e => e.msg).join(' | ');
                 }
                 throw new Error(errorMessage);
             }
@@ -157,15 +157,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 6. LÓGICA PARA GESTIÓN DE PEDIDOS
+    // 6. GESTIÓN DE PEDIDOS (Carga inicial)
     cargarTodosLosPedidosAdmin();
 
-    // 7. LÓGICA PARA EL POP-UP (MODAL) DE "PAGAR"
+    // 7. MODAL DE PAGO
     const paymentModalOverlay = document.getElementById('payment-modal-overlay');
-    const paymentModalTitle = document.getElementById('payment-modal-title');
+    const closePaymentModalButton = document.getElementById('close-payment-modal-button');
     const paymentForm = document.getElementById('payment-form');
     const paymentMessage = document.getElementById('payment-message');
-    const closePaymentModalButton = document.getElementById('close-payment-modal-button');
 
     function hidePaymentModal() {
         paymentModalOverlay.classList.add('hidden');
@@ -174,9 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closePaymentModalButton.addEventListener('click', hidePaymentModal);
     paymentModalOverlay.addEventListener('click', (e) => {
-        if (e.target === paymentModalOverlay) {
-            hidePaymentModal();
-        }
+        if (e.target === paymentModalOverlay) hidePaymentModal();
     });
 
     paymentForm.addEventListener('submit', async (e) => {
@@ -204,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 8. LÓGICA PARA EL BOTÓN DE REPORTE DIARIO
+    // 8. REPORTES
     const getReportButton = document.getElementById('get-daily-report-button');
     const reportResultsDiv = document.getElementById('report-results');
 
@@ -225,39 +222,72 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const reporte = await response.json();
-
-            // Formatear la fecha (que viene como "YYYY-MM-DD") a algo más legible
             const fechaParts = reporte.fecha.split('-');
             const fechaFormateada = new Date(fechaParts[0], fechaParts[1] - 1, fechaParts[2]).toLocaleDateString('es-CL');
 
-            // --- ¡AQUÍ ESTÁ EL CAMBIO! ---
-            // Borramos la línea <small>...</small>
             reportResultsDiv.innerHTML = `
                 <p><strong>Fecha del Reporte:</strong> ${fechaFormateada}</p>
                 <p class="report-total">Ventas Totales: $${reporte.total_ventas.toFixed(0)}</p>
             `;
-            // --- FIN DEL CAMBIO ---
-
         } catch (error) {
             console.error('Error al obtener reporte:', error);
             reportResultsDiv.innerHTML = `<p style="color:red;">${error.message}</p>`;
         }
     });
 
-});
-// --- FIN DEL DOMContentLoaded ---
+    // --- 9. GESTIÓN DE MESAS Y QRs (NUEVO) ---
+    // Esta parte estaba mal pegada antes. Ahora está correctamente integrada.
+    
+    const createTableForm = document.getElementById('create-table-form');
+    
+    // Cargar mesas al inicio
+    cargarMesas();
+
+    createTableForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('new-table-name').value;
+        const section = document.getElementById('new-table-section').value;
+        const token = getToken();
+
+        try {
+            const response = await fetch('http://127.0.0.1:8001/tables', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ name, section })
+            });
+            
+            if(!response.ok) {
+                const err = await response.json();
+                alert(err.detail || 'Error al crear mesa');
+                return;
+            }
+            createTableForm.reset();
+            cargarMesas(); // Recargar la lista
+            alert("¡Mesa creada!");
+        } catch (error) {
+            console.error(error);
+            alert("Error de conexión al crear mesa");
+        }
+    });
+
+    // Modal de QR
+    const qrModal = document.getElementById('qr-modal-overlay');
+    document.getElementById('close-qr-modal').addEventListener('click', () => qrModal.classList.add('hidden'));
+
+}); // --- FIN DEL DOMContentLoaded ---
 
 
-// --- Función de Cargar Productos (sin cambios) ---
-const productListContainer = document.getElementById('product-list-container');
+// --- FUNCIONES AUXILIARES (Fuera del DOMContentLoaded) ---
+
 async function cargarProductosAdmin() {
+    const productListContainer = document.getElementById('product-list-container');
     const token = getToken(); 
     try {
         const response = await fetch('http://127.0.0.1:8000/menu', {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) { throw new Error('No se pudieron cargar los productos.'); }
+        if (!response.ok) throw new Error('Error de conexión');
         
         const productos = await response.json();
         productListContainer.innerHTML = ''; 
@@ -294,7 +324,6 @@ async function cargarProductosAdmin() {
     }
 }
 
-// --- Función para preparar el modal de edición (sin cambios) ---
 function prepararEdicion(producto) {
     currentEditingId = producto.id;
     document.getElementById('modal-title').textContent = 'Editar Producto';
@@ -304,30 +333,23 @@ function prepararEdicion(producto) {
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
-// --- Función de Eliminar Productos (sin cambios) ---
 async function eliminarProducto(productoId, productoNombre) {
-    if (!confirm(`¿Estás seguro de que quieres eliminar "${productoNombre}"? Esta acción no se puede deshacer.`)) {
-        return; 
-    }
+    if (!confirm(`¿Eliminar "${productoNombre}"?`)) return;
     const token = getToken(); 
     try {
         const response = await fetch(`http://127.0.0.1:8000/menu/${productoId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Error al eliminar el producto.');
-        }
-        alert(`¡Producto "${productoNombre}" eliminado con éxito!`);
+        if (!response.ok) throw new Error();
+        alert(`¡Producto eliminado!`);
         cargarProductosAdmin(); 
     } catch (error) {
-        console.error('Error al eliminar:', error);
-        alert(error.message); 
+        alert('Error al eliminar producto.'); 
     }
 }
 
-// --- Funciones de Gestión de Pedidos (sin cambios) ---
+// --- Gestión de Pedidos ---
 async function cargarTodosLosPedidosAdmin() {
     const token = getToken();
     const orderListDiv = document.getElementById('admin-order-list');
@@ -337,12 +359,12 @@ async function cargarTodosLosPedidosAdmin() {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) { throw new Error('No se pudieron cargar los pedidos.'); }
+        if (!response.ok) throw new Error();
 
         const pedidos = await response.json();
         orderListDiv.innerHTML = ''; 
         if (pedidos.length === 0) {
-            orderListDiv.innerHTML = '<p>No hay pedidos en el historial.</p>';
+            orderListDiv.innerHTML = '<p>No hay pedidos.</p>';
             return;
         }
         
@@ -351,18 +373,15 @@ async function cargarTodosLosPedidosAdmin() {
             pedidoCard.className = 'order-card-admin';
             
             const isPagado = pedido.status === 'Pagado';
-            if (isPagado) {
-                pedidoCard.classList.add('pagado');
-            }
+            if (isPagado) pedidoCard.classList.add('pagado');
             
             const itemsString = (pedido.items && pedido.items.length > 0) ? pedido.items.join(', ') : 'N/A';
-            const fecha = pedido.created_at ? new Date(pedido.created_at).toLocaleString('es-CL') : 'N/A';
             const total = pedido.total ? pedido.total.toFixed(0) : 'N/A';
             const status = pedido.status || 'N/A';
             const table = pedido.table_number || 'N/A';
             
             const hideButtonHtml = isPagado 
-                ? `<button class="hide-order-button" title="Ocultar de la lista">&times;</button>`
+                ? `<button class="hide-order-button" title="Ocultar">&times;</button>`
                 : '';
             
             pedidoCard.innerHTML = `
@@ -371,13 +390,12 @@ async function cargarTodosLosPedidosAdmin() {
                 <p><strong>Mesa:</strong> ${table}</p>
                 <p><strong>Items:</strong> ${itemsString}</p>
                 <p><strong>Total:</strong> $${total}</p>
-                <p><strong>Fecha:</strong> ${fecha}</p>
                 <div class="order-actions">
                     <button class="pay-button" data-id="${pedido.id}" ${isPagado ? 'disabled' : ''}>
-                        ${isPagado ? 'Pagado' : 'Procesar Pago'}
+                        ${isPagado ? 'Pagado' : 'Pagar'}
                     </button>
                     <button class="receipt-button" data-id="${pedido.id}" ${!isPagado ? 'disabled' : ''}>
-                        Generar Boleta
+                        Boleta
                     </button>
                 </div>
             `;
@@ -385,33 +403,24 @@ async function cargarTodosLosPedidosAdmin() {
             if (!isPagado) {
                 pedidoCard.querySelector('.pay-button').addEventListener('click', (e) => {
                     const orderId = e.target.dataset.id;
-                    const paymentModalTitle = document.getElementById('payment-modal-title');
-                    const paymentModalOverlay = document.getElementById('payment-modal-overlay');
                     currentPayingOrderId = orderId; 
-                    paymentModalTitle.textContent = `Procesar Pago Pedido #${orderId}`;
+                    document.getElementById('payment-modal-title').textContent = `Pago Pedido #${orderId}`;
                     document.getElementById('payment-message').textContent = '';
                     document.getElementById('payment-form').reset();
-                    paymentModalOverlay.classList.remove('hidden');
+                    document.getElementById('payment-modal-overlay').classList.remove('hidden');
                 });
             }
 
             if (isPagado) {
-                pedidoCard.querySelector('.receipt-button').addEventListener('click', (e) => {
-                    const orderId = e.target.dataset.id;
-                    generarBoleta(orderId); 
-                });
-                
-                pedidoCard.querySelector('.hide-order-button').addEventListener('click', () => {
-                    pedidoCard.style.display = 'none';
-                });
+                pedidoCard.querySelector('.receipt-button').addEventListener('click', (e) => generarBoleta(e.target.dataset.id));
+                pedidoCard.querySelector('.hide-order-button').addEventListener('click', () => pedidoCard.style.display = 'none');
             }
-            
             orderListDiv.appendChild(pedidoCard);
         });
 
     } catch (error) {
-        console.error('Error al cargar pedidos:', error);
-        orderListDiv.innerHTML = '<p>Error al cargar el historial.</p>';
+        console.error(error);
+        orderListDiv.innerHTML = '<p>Error al cargar historial.</p>';
     }
 }
 
@@ -419,29 +428,80 @@ async function generarBoleta(orderId) {
     const token = getToken();
     try {
         const response = await fetch(`http://127.0.0.1:8001/pedidos/${orderId}/ticket`, {
-            method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Error al generar la boleta.');
-        }
+        if (!response.ok) throw new Error('Error al generar boleta');
         
         const boleta = await response.json();
-        
         const items = boleta.items.join('\n - ');
         alert(
-            `--- BOLETA Pedido #${boleta.order_id} ---\n` +
+            `--- BOLETA #${boleta.order_id} ---\n` +
             `Fecha: ${new Date(boleta.issued_at).toLocaleString('es-CL')}\n` +
-            `Mesa: ${boleta.table_number}\n\n` +
-            `--- Items ---\n - ${items}\n\n` +
-            `Método de Pago: ${boleta.payment_method}\n` +
-            `TOTAL: $${boleta.total.toFixed(0)}`
+            `Mesa: ${boleta.table_number}\n` +
+            `Items:\n - ${items}\n` +
+            `TOTAL: $${boleta.total.toFixed(0)}\n` +
+            `Pago: ${boleta.payment_method}`
         );
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+// --- Gestión de Mesas (Funciones Auxiliares) ---
+async function cargarMesas() {
+    const tablesListContainer = document.getElementById('tables-list-container');
+    const token = getToken();
+    try {
+        const response = await fetch('http://127.0.0.1:8001/tables', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const mesas = await response.json();
+        
+        tablesListContainer.innerHTML = '';
+        mesas.forEach(mesa => {
+            const div = document.createElement('div');
+            div.className = 'product-item'; 
+            div.innerHTML = `
+                <div class="product-item-info">
+                    <strong>${mesa.name}</strong> - <small>${mesa.section}</small>
+                </div>
+                <button class="edit-product-button show-qr-btn" data-id="${mesa.id}" data-name="${mesa.name}" data-qrid="${mesa.qr_id}">
+                    Ver QR
+                </button>
+            `;
+            tablesListContainer.appendChild(div);
+        });
+
+        document.querySelectorAll('.show-qr-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => mostrarQR(e.target.dataset.id, e.target.dataset.name, e.target.dataset.qrid));
+        });
 
     } catch (error) {
-        console.error('Error al generar boleta:', error);
-        alert(error.message);
+        console.error("Error al cargar mesas:", error);
+    }
+}
+
+async function mostrarQR(id, name, qrId) {
+    const token = getToken();
+    const qrModal = document.getElementById('qr-modal-overlay');
+    const qrContainer = document.getElementById('qr-image-container');
+    const qrLinkText = document.getElementById('qr-link-text');
+    const openQrLinkBtn = document.getElementById('open-qr-link');
+
+    const response = await fetch(`http://127.0.0.1:8001/tables/${id}/qr`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if(response.ok) {
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+        
+        qrContainer.innerHTML = `<img src="${imageUrl}" alt="QR ${name}" style="max-width: 200px;">`;
+        
+        const link = `http://127.0.0.1:5500/index.html?mesa=${qrId}`;
+        qrLinkText.textContent = link;
+        openQrLinkBtn.href = link;
+        
+        qrModal.classList.remove('hidden');
     }
 }

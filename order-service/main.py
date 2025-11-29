@@ -1,22 +1,22 @@
 # order-service/main.py
-# Este microservicio se encarga de toda la lógica de pedidos y ahora está protegido.
+# Microservicio para pedidos, mesas, KDS y Notificaciones.
 
 import os
 import time
 import json
+import uuid
+import io
+import qrcode
+import requests # <--- NUEVO: Para hablar con Telegram
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Query
-# IMPORTACIONES DE SEGURIDAD
+from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-# FIN IMPORTACIONES DE SEGURIDAD
-
-# --- MODIFICADO: Importaciones añadidas ---
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, func, cast, Date
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
-# --- MODIFICADO: Importamos 'date', 'datetime' y 'Enum' ---
 from datetime import datetime, date
 from enum import Enum
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +24,6 @@ from fastapi.middleware.cors import CORSMiddleware
 # ----------------------------------------------------
 # 0. CONFIGURACIÓN DE SEGURIDAD
 # ----------------------------------------------------
-# Nota: La clave secreta debe ser idéntica en auth-service y en los servicios de recursos.
 SECRET_KEY = "EASYADMIN_SUPER_SECRET_KEY_REPLACE_ME_LATER"
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="http://localhost:8002/auth/token")
@@ -34,7 +33,6 @@ class TokenData(BaseModel):
     role: Optional[str] = None
 
 def get_current_user_data(token: str = Depends(oauth2_scheme)) -> TokenData:
-    """Decodifica y verifica la validez del token JWT."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciales inválidas o token expirado",
@@ -52,370 +50,308 @@ def get_current_user_data(token: str = Depends(oauth2_scheme)) -> TokenData:
     return token_data
 
 def required_roles(roles: List[str]):
-    """Dependencia para verificar que el rol del usuario actual sea uno de los roles requeridos."""
     def role_checker(token_data: TokenData = Depends(get_current_user_data)):
         if token_data.role not in roles:
             roles_str = " o ".join([f"'{r}'" for r in roles])
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permiso denegado. Rol '{token_data.role}' no autorizado. Se requiere rol {roles_str}.",
+                detail=f"Permiso denegado. Rol '{token_data.role}' no autorizado.",
             )
         return token_data
     return role_checker
 
 # ----------------------------------------------------
-# 1. Instancia de FastAPI para el servicio de pedidos
+# 1. Instancia de FastAPI
 # ----------------------------------------------------
-# --- Instancia de FastAPI para el servicio de pedidos ---
 app = FastAPI(
-    title="API de Pedidos - EasyAdmin",
-    description="Microservicio para gestionar los pedidos, estados y KDS.",
-    version="1.2.2" # Versión con corrección de bugs 500 (TypeError y ValidationError)
+    title="API de Pedidos y Mesas - EasyAdmin",
+    version="1.4.0" # Versión con Telegram
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
-# --- Configuración de la Base de Datos ---
+
+# --- Base de Datos ---
 DB_USER = os.getenv("MYSQL_USER", "easyadmin_user")
 DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "password_segura")
 DB_HOST = os.getenv("MYSQL_HOST", "mysql_db")
 DB_NAME = os.getenv("MYSQL_DATABASE", "easyadmin_db")
 DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
 
+# --- Telegram Config ---
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
 Base = declarative_base()
 engine = None
 SessionLocal = None
 
-# --- Modelos SQLAlchemy (Product debe existir para calcular precio) ---
+# ----------------------------------------------------
+# 2. MODELOS DE BASE DE DATOS (SQLAlchemy)
+# ----------------------------------------------------
 class Product(Base):
     __tablename__ = "products"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), unique=True, index=True)
-    description = Column(String(255))
-    price = Column(Float) # Esta columna permite NULL
+    price = Column(Float)
 
 class Order(Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True, index=True)
-    items = Column(String(500)) # Esta columna permite NULL
-    total = Column(Float) # Esta columna permite NULL
-    # Status puede ser: "pendiente", "en preparacion", "listo", "Pagado"
+    items = Column(String(500))
+    total = Column(Float)
     status = Column(String(50), default="pendiente")
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    table_number = Column(Integer, index=True) # Esta columna permite NULL
-    # --- NUEVO: Columna para RF15 ---
-    payment_method = Column(String(50), nullable=True) # "efectivo", "tarjeta"
+    table_number = Column(Integer, index=True) 
+    payment_method = Column(String(50), nullable=True)
+    qr_id_used = Column(String(36), nullable=True)
 
-# --- Modelos Pydantic (Sin cambios) ---
+class Table(Base):
+    __tablename__ = "tables"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), unique=True) 
+    section = Column(String(50))           
+    qr_id = Column(String(36), unique=True, index=True) 
+
+# ----------------------------------------------------
+# 3. MODELOS PYDANTIC (Schemas)
+# ----------------------------------------------------
 class OrderBase(BaseModel):
     items: List[str]
-    table_number: int
+    table_number: int 
+    qr_id: Optional[str] = None 
+
 class OrderCreate(OrderBase): pass
 
-# --- CORREGIDO: Modelo de Respuesta (FIX 2) ---
-# Hacemos Opcionales los campos que pueden ser NULL en la BD
-# para evitar el error 500 de serialización en GET /pedidos.
 class OrderResponse(BaseModel):
     id: int
-    items: List[str] # El validador de abajo ya maneja items=None
+    items: List[str]
     total: Optional[float] = None
     status: Optional[str] = None
     created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
     table_number: Optional[int] = None
     payment_method: Optional[str] = None
-    
     class Config: from_attributes = True
-    
-    # Este validador estaba bien, lo mantenemos.
     @field_validator('items', mode='before')
     @classmethod
-    def split_items_string(cls, v):
-        """
-        Toma el string de la base de datos y lo convierte en lista.
-        Maneja el caso donde 'items' pueda ser None si la BD lo permite.
-        """
-        if isinstance(v, str): 
-            if v == "":
-                return []
-            return [item.strip() for item in v.split(',')]
-        if v is None:
-            # Si es None, devolvemos una lista vacía
-            return []
-        return v
+    def split_items(cls, v):
+        if isinstance(v, str): return [x.strip() for x in v.split(',')] if v else []
+        return v or []
 
-class OrderStatusUpdate(BaseModel):
-    status: str # "pendiente", "en preparacion", "listo"
-
+class OrderStatusUpdate(BaseModel): status: str
+class PaymentRequest(BaseModel): method: str
+class DailyReport(BaseModel): fecha: date; total_ventas: float
 class TicketResponse(BaseModel):
-    order_id: int
-    items: List[str]
-    total: float
-    issued_at: datetime
-    table_number: int
-    payment_method: Optional[str] = None
+    order_id: int; items: List[str]; total: float; issued_at: datetime; table_number: int; payment_method: Optional[str]
 
-# --- NUEVO: Enum y Modelo para RF15 ---
-class PaymentMethod(str, Enum):
-    tarjeta = "tarjeta"
-    efectivo = "efectivo"
+class TableCreate(BaseModel):
+    name: str
+    section: str
 
-class PaymentRequest(BaseModel):
-    method: PaymentMethod
+class TableResponse(BaseModel):
+    id: int
+    name: str
+    section: str
+    qr_id: str
+    class Config: from_attributes = True
 
-class DailyReport(BaseModel):
-    fecha: date
-    total_ventas: float
+# ----------------------------------------------------
+# 4. FUNCIONES AUXILIARES (Telegram)
+# ----------------------------------------------------
+def enviar_notificacion_telegram(mensaje: str):
+    """Envía un mensaje al grupo de Telegram configurado."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        print("⚠️ Telegram no configurado (Falta TOKEN o CHAT_ID). Omitiendo notificación.")
+        return
 
-# --- Lógica de Conexión, Sesión y WebSockets (Sin cambios) ---
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": mensaje,
+        "parse_mode": "Markdown"
+    }
+    try:
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            print(f"✅ Notificación enviada a Telegram: {mensaje}")
+        else:
+            print(f"❌ Error enviando a Telegram: {response.text}")
+    except Exception as e:
+        print(f"❌ Excepción enviando a Telegram: {e}")
+
+# ----------------------------------------------------
+# 5. WEBSOCKETS Y CONEXIÓN DB
+# ----------------------------------------------------
 class ConnectionManager:
     def __init__(self): self.active_connections: List[WebSocket] = []
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept(); self.active_connections.append(websocket)
-    def disconnect(self, websocket: WebSocket): self.active_connections.remove(websocket)
+    async def connect(self, ws: WebSocket): await ws.accept(); self.active_connections.append(ws)
+    def disconnect(self, ws: WebSocket): self.active_connections.remove(ws)
     async def broadcast(self, data: dict):
-        message = json.dumps(data, default=str)
-        for connection in self.active_connections: await connection.send_text(message)
+        for conn in self.active_connections: await conn.send_text(json.dumps(data, default=str))
 manager = ConnectionManager()
-# ... (startup_db_client y get_db) ...
 
 @app.on_event("startup")
-def startup_db_client():
+def startup():
     global engine, SessionLocal
-    for attempt in range(10):
+    for _ in range(10):
         try:
             engine = create_engine(DATABASE_URL)
             with engine.connect(): Base.metadata.create_all(bind=engine)
-            SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            print("✅ [order-service] Conexión a MySQL exitosa.")
+            SessionLocal = sessionmaker(bind=engine)
+            print("✅ [order-service] Conectado a MySQL.")
             return
-        except Exception as e:
-            print(f"⚠️ [order-service] Fallo en conexión, reintentando... ({e})")
-            time.sleep(5)
-            if attempt == 9: raise e
+        except Exception: time.sleep(5)
 
 def get_db():
-    if SessionLocal is None: raise HTTPException(status_code=500, detail="DB no disponible.")
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
-# --- LECTOR DE TOKENS PARA WEBSOCKET ---
-# No podemos usar "Depends" en WebSockets, así que creamos una función
-# helper que hace el mismo trabajo que get_current_user_data.
-def verify_token_for_websocket(token: str) -> TokenData:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Credenciales inválidas o token expirado para WebSocket",
-    )
+def verify_ws_token(token: str):
     try:
+        # Imprimimos el token para depurar (solo los primeros caracteres)
+        print(f"🔍 Verificando token: {token[:15]}...")
+        
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        role: str = payload.get("role")
-        if username is None or role is None:
-            raise credentials_exception
-        token_data = TokenData(username=username, role=role)
-    except JWTError:
-        raise credentials_exception
-    return token_data
-# --- FIN LECTOR ---
-
+        
+        # Verificamos si tiene rol
+        if not payload.get("role"): 
+            print("❌ El token no tiene campo 'role'")
+            raise Exception("Token sin rol")
+            
+        print(f"✅ Token válido. Usuario: {payload.get('sub')}, Rol: {payload.get('role')}")
+        return payload
+    except Exception as e:
+        # ¡Aquí está la clave! Imprimimos el error exacto
+        print(f"❌ Error al decodificar token WS: {str(e)}")
+        return None
 
 @app.websocket("/ws/kds")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    token: str = Query(...)  # <-- (Paso A) Leemos el token de la URL
-):
+async def ws_endpoint(websocket: WebSocket, token: str = Query(...)):
+    payload = verify_ws_token(token)
+    if not payload or payload["role"] not in ["admin", "cocinero"]:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    await manager.connect(websocket)
     try:
-        # --- (Paso B) Validamos el token ---
-        token_data = verify_token_for_websocket(token)
-        
-        # --- (Paso C) Verificamos el rol ---
-        # Solo "admin" o "cocinero" pueden conectarse al KDS
-        if token_data.role not in ["admin", "cocinero"]:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Rol no autorizado")
-            return
+        while True: await websocket.receive_text()
+    except WebSocketDisconnect: manager.disconnect(websocket)
 
-        # --- (Paso D) Si todo es válido, nos conectamos ---
-        await manager.connect(websocket)
-        print(f"KDS conectado: {token_data.username} (Rol: {token_data.role})") # Log de éxito
-        
-        while True:
-            await websocket.receive_text()
-            
-    except HTTPException:
-        # Si el token es inválido, cerramos la conexión
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Token inválido o expirado")
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        print("KDS desconectado.")
+# ----------------------------------------------------
+# 6. ENDPOINTS
+# ----------------------------------------------------
 
-# --- Endpoints de la API de Pedidos (MODIFICADOS) ---
-@app.get("/health", tags=["Salud del Servicio"])
-def health_check(): return {"status": "ok", "service": "order-service"}
+@app.post("/tables", tags=["Mesas"], response_model=TableResponse, status_code=201,
+          dependencies=[Depends(required_roles(["admin"]))])
+def crear_mesa(mesa: TableCreate, db: Session = Depends(get_db)):
+    existe = db.query(Table).filter(Table.name == mesa.name).first()
+    if existe: raise HTTPException(status_code=400, detail="El ID de la mesa ya está en uso.")
+    nuevo_qr_id = str(uuid.uuid4())
+    nueva_mesa = Table(name=mesa.name, section=mesa.section, qr_id=nuevo_qr_id)
+    db.add(nueva_mesa); db.commit(); db.refresh(nueva_mesa)
+    return nueva_mesa
 
-# --- CORREGIDO: crear_pedido (FIX 1) ---
-# Añadida validación para product.price
-@app.post("/pedidos", tags=["Pedidos"], response_model=OrderResponse, status_code=201,
-          dependencies=[Depends(required_roles(["admin", "cajero"]))])
+@app.get("/tables", tags=["Mesas"], response_model=List[TableResponse],
+         dependencies=[Depends(required_roles(["admin", "cajero"]))])
+def listar_mesas(db: Session = Depends(get_db)):
+    return db.query(Table).all()
+
+@app.get("/tables/{table_id}/qr", tags=["Mesas"])
+def obtener_qr_mesa(table_id: int, db: Session = Depends(get_db)):
+    mesa = db.query(Table).filter(Table.id == table_id).first()
+    if not mesa: raise HTTPException(status_code=404, detail="Mesa no encontrada")
+    # Para el despliegue local, usamos 127.0.0.1
+    qr_content = f"http://127.0.0.1:5500/index.html?mesa={mesa.qr_id}"
+    qr = qrcode.QRCode(box_size=10, border=4)
+    qr.add_data(qr_content); qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO(); img.save(buf, format="PNG"); buf.seek(0)
+    return StreamingResponse(buf, media_type="image/png")
+
+@app.post("/pedidos", tags=["Pedidos"], response_model=OrderResponse, status_code=201)
 async def crear_pedido(pedido: OrderCreate, db: Session = Depends(get_db)):
+    mesa_numero = pedido.table_number
+    qr_usado = None
+    if pedido.qr_id:
+        mesa_db = db.query(Table).filter(Table.qr_id == pedido.qr_id).first()
+        if not mesa_db: raise HTTPException(status_code=404, detail="Código QR inválido.")
+        mesa_numero = mesa_db.id
+        qr_usado = pedido.qr_id
+
     total_price = 0.0
     for name in pedido.items:
-        product = db.query(Product).filter(Product.name == name).first()
-        
-        # --- INICIO DE CORRECCIÓN (FIX 1) ---
-        if not product: 
-            raise HTTPException(status_code=404, detail=f"Producto '{name}' no existe.")
-        
-        # Esta es la validación que faltaba. Si el precio es NULL, evitamos el TypeError
-        if product.price is None:
-            print(f"Error 500: El producto '{name}' (ID: {product.id}) no tiene precio asignado (es NULL).")
-            raise HTTPException(status_code=500, detail=f"El producto '{name}' no tiene un precio asignado en la base de datos.")
-        
-        total_price += product.price
-        # --- FIN DE CORRECCIÓN ---
+        prod = db.query(Product).filter(Product.name == name).first()
+        if prod and prod.price: total_price += prod.price
 
-    db_order = Order(
-        items=", ".join(pedido.items),
-        total=total_price,
-        table_number=pedido.table_number
-    )
+    db_order = Order(items=", ".join(pedido.items), total=total_price, table_number=mesa_numero, qr_id_used=qr_usado)
     db.add(db_order); db.commit(); db.refresh(db_order)
+    resp = OrderResponse.model_validate(db_order)
+    
+    # Notificación opcional: Nuevo pedido
+    # enviar_notificacion_telegram(f"🆕 *Nuevo Pedido #{resp.id}*\nMesa: {resp.table_number}")
 
-    response_order = OrderResponse.model_validate(db_order)
-    message = {"type": "new_order", "data": response_order.model_dump()}
-    await manager.broadcast(message)
-
-    return response_order
+    await manager.broadcast({"type": "new_order", "data": resp.model_dump()})
+    return resp
 
 @app.get("/pedidos", tags=["Pedidos"], response_model=List[OrderResponse])
 def ver_pedidos(db: Session = Depends(get_db)):
-    """Puede ser público o requerir rol 'admin' / 'cajero' / 'cocinero' (dependiendo de la necesidad). Por ahora, público."""
-    # El bug 500 estaba aquí: si un 'order' tenía 'total=None' o 'table_number=None',
-    # la serialización fallaba. El modelo OrderResponse corregido (FIX 2)
-    # ahora maneja esto.
     return db.query(Order).all()
 
-# --- NUEVO: Endpoint para RF18 (Ver historial de un pedido) ---
-@app.get("/pedidos", tags=["Pedidos"], response_model=List[OrderResponse],
-         dependencies=[Depends(required_roles(["admin", "cocinero"]))])
-def ver_pedidos(db: Session = Depends(get_db)):
-    """
-    (RF18) Permite al cajero o admin ver los detalles de un pedido específico 
-    por su ID para verificar pagos o historial.
-    """
-    order_db = db.query(Order).filter(Order.id == order_id).first()
-    if not order_db:
-        raise HTTPException(status_code=404, detail=f"Pedido {order_id} no encontrado.")
-    
-    # Esto también fallaba con 500 si el pedido tenía campos NULL.
-    # Ahora está corregido por OrderResponse (FIX 2).
-    return order_db
+@app.get("/pedidos/{order_id}", tags=["Pedidos"], response_model=OrderResponse)
+def ver_detalle_pedido(order_id: int, db: Session = Depends(get_db)):
+    res = db.query(Order).filter(Order.id == order_id).first()
+    if not res: raise HTTPException(404, "No encontrado")
+    return res
 
-# PROTEGIDO: Solo 'admin' o 'cocinero' pueden actualizar el estado de un pedido (KDS).
 @app.put("/pedidos/{order_id}/estado", tags=["Pedidos"], response_model=OrderResponse,
          dependencies=[Depends(required_roles(["admin", "cocinero"]))])
-async def actualizar_estado_pedido(order_id: int, status_update: OrderStatusUpdate, db: Session = Depends(get_db)):
-    order_db = db.query(Order).filter(Order.id == order_id).first()
-    if not order_db: raise HTTPException(status_code=404, detail=f"Pedido {order_id} no encontrado.")
+async def actualizar_estado(order_id: int, st: OrderStatusUpdate, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order: raise HTTPException(404)
+    
+    order.status = st.status
+    db.commit(); db.refresh(order)
+    resp = OrderResponse.model_validate(order)
+    
+    # --- NOTIFICACIÓN TELEGRAM (RF20) ---
+    if st.status == "listo":
+        msg = f"✅ *¡Pedido #{order.id} LISTO!*\n🍽 Mesa: {order.table_number}\n📦 Items: {order.items}"
+        enviar_notificacion_telegram(msg)
+    # ------------------------------------
 
-    order_db.status = status_update.status
-    db.commit(); db.refresh(order_db)
-
-    response_order = OrderResponse.model_validate(order_db)
-    message = {"type": "status_update", "data": response_order.model_dump()}
-    await manager.broadcast(message)
-
-    return response_order
-
+    await manager.broadcast({"type": "status_update", "data": resp.model_dump()})
+    return resp
 
 @app.put("/pedidos/{order_id}/pagar", tags=["Pedidos"], response_model=OrderResponse,
          dependencies=[Depends(required_roles(["admin", "cajero"]))])
-async def procesar_pago_pedido(order_id: int, payment: PaymentRequest, db: Session = Depends(get_db)):
-    """
-    (RF15) Permite al cajero marcar un pedido como 'Pagado' y registrar el
-    método de pago (efectivo o tarjeta).
-    """
-    order_db = db.query(Order).filter(Order.id == order_id).first()
-    if not order_db:
-        raise HTTPException(status_code=404, detail=f"Pedido {order_id} no encontrado.")
-
-    
-    if order_db.status == "Pagado":
-        raise HTTPException(status_code=409, detail="El pedido ya ha sido pagado.") 
-
-   
-    order_db.status = "Pagado"
-    order_db.payment_method = payment.method
-    
-    db.commit()
-    db.refresh(order_db)
-
-    
-    response_order = OrderResponse.model_validate(order_db)
-    message = {"type": "status_update", "data": response_order.model_dump()}
-    await manager.broadcast(message)
-
-    return response_order
-
-
+async def pagar_pedido(order_id: int, pay: PaymentRequest, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order: raise HTTPException(404)
+    if order.status == "Pagado": raise HTTPException(409, "Ya pagado")
+    order.status = "Pagado"; order.payment_method = pay.method
+    db.commit(); db.refresh(order)
+    resp = OrderResponse.model_validate(order)
+    await manager.broadcast({"type": "status_update", "data": resp.model_dump()})
+    return resp
 
 @app.get("/pedidos/{order_id}/ticket", tags=["Pedidos"], response_model=TicketResponse,
          dependencies=[Depends(required_roles(["admin", "cajero"]))])
-def generar_ticket(order_id: int, db: Session = Depends(get_db)):
-   
-    order_db = db.query(Order).filter(Order.id == order_id).first()
-    if not order_db:
-        # --- CORREGIDO: El código de estado era 4404, debe ser 404 ---
-        raise HTTPException(status_code=404, detail=f"Pedido con ID {order_id} no encontrado.")
-
-    # --- NUEVA VALIDACIÓN RF16 ---
-    if order_db.status != "Pagado":
-        raise HTTPException(status_code=400, detail="El ticket solo puede generarse para pedidos pagados.")
-
-    # Esta línea usa OrderResponse.model_validate, por lo que también
-    # se beneficia de la corrección del validador.
-    items_list = OrderResponse.model_validate(order_db).items
-
-    # --- CORRECCIÓN ADICIONAL ---
-    # Si el pedido tiene total=None o table_number=None (por FIX 2),
-    # el modelo TicketResponse (que es estricto) fallaría.
-    # Debemos validar aquí.
-    if order_db.total is None or order_db.table_number is None or order_db.created_at is None:
-         raise HTTPException(status_code=500, detail=f"No se puede generar ticket. El pedido {order_id} tiene datos incompletos (total, mesa o fecha es NULL).")
-
-    ticket = TicketResponse(
-        order_id=order_db.id,
-        items=items_list,
-        total=order_db.total,
-        issued_at=order_db.created_at,
-        table_number=order_db.table_number,
-        payment_method=order_db.payment_method 
+def ticket(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order or order.status != "Pagado": raise HTTPException(400, "Requiere pago")
+    return TicketResponse(
+        order_id=order.id, items=OrderResponse.model_validate(order).items,
+        total=order.total, issued_at=order.created_at,
+        table_number=order.table_number, payment_method=order.payment_method
     )
-    return ticket
-
 
 @app.get("/reporte/diario", tags=["Reportes"], response_model=DailyReport,
          dependencies=[Depends(required_roles(["admin"]))])
-def obtener_reporte_diario(
-    db: Session = Depends(get_db),
-    fecha: Optional[date] = None
-):
-
-    if fecha is None:
-        fecha = datetime.now().date()
-
-    total_ventas = db.query(func.sum(Order.total)).filter(
-        cast(Order.created_at, Date) == fecha,
-        Order.status == "Pagado" 
-    ).scalar()
-
-    if total_ventas is None:
-        total_ventas = 0.0
-
-    return DailyReport(fecha=fecha, total_ventas=total_ventas)
+def reporte(fecha: Optional[date] = None, db: Session = Depends(get_db)):
+    fecha = fecha or datetime.now().date()
+    total = db.query(func.sum(Order.total)).filter(
+        cast(Order.created_at, Date) == fecha, Order.status == "Pagado"
+    ).scalar() or 0.0
+    return DailyReport(fecha=fecha, total_ventas=total)

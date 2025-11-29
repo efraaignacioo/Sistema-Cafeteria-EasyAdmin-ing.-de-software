@@ -55,6 +55,34 @@
             <div id="admin-order-list">
                 </div>
         </section>
+        <section class="card" id="tables-management">
+    <h2>Gestión de Mesas y QRs</h2>
+    <form id="create-table-form" style="display: flex; gap: 10px; align-items: flex-end;">
+        <div class="form-group">
+            <label>Nombre (Ej: Mesa 1):</label>
+            <input type="text" id="new-table-name" required>
+        </div>
+        <div class="form-group">
+            <label>Sección (Ej: Terraza):</label>
+            <input type="text" id="new-table-section" required>
+        </div>
+        <button type="submit" class="button-link" style="margin-bottom: 2px;">Crear Mesa</button>
+    </form>
+    <hr>
+    <h3>Mesas Existentes:</h3>
+    <div id="tables-list-container" style="display: flex; flex-direction: column; gap: 10px;">
+        </div>
+</section>
+
+<div id="qr-modal-overlay" class="modal-overlay hidden">
+    <div class="modal" style="text-align: center;">
+        <button id="close-qr-modal" class="close-button">&times;</button>
+        <h2>Código QR de la Mesa</h2>
+        <div id="qr-image-container"></div>
+        <p id="qr-link-text" style="word-break: break-all; color: #555; margin-top: 10px;"></p>
+        <a id="open-qr-link" href="#" target="_blank" class="button-link">Abrir Link (Simular Escaneo)</a>
+    </div>
+</div>
 
         <section class="card" id="reports-management">
             <h2>Reportes</h2>

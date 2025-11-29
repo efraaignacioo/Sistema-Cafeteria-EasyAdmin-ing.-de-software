@@ -20,7 +20,7 @@ from jose import JWTError, jwt
 app = FastAPI(
     title="API de Autenticación - EasyAdmin",
     description="Microservicio para registrar usuarios, gestionar roles y emitir tokens JWT.",
-    version="1.1.0" # Versión con manejo de errores
+    version="1.1.0"
 )
 app.add_middleware(
     CORSMiddleware,
@@ -129,8 +129,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 def get_current_user_data(token: str = Depends(oauth2_scheme)) -> TokenData:
-    """Decodifica y verifica la validez del token JWT."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciales inválidas o token expirado",
@@ -148,7 +148,6 @@ def get_current_user_data(token: str = Depends(oauth2_scheme)) -> TokenData:
     return token_data
 
 def required_roles(roles: List[str]):
-    """Dependencia para verificar que el rol del usuario actual sea uno de los roles requeridos."""
     def role_checker(token_data: TokenData = Depends(get_current_user_data)):
         if token_data.role not in roles:
             roles_str = " o ".join([f"'{r}'" for r in roles])
@@ -160,11 +159,11 @@ def required_roles(roles: List[str]):
     return role_checker
 
 # --- Endpoints de la API ---
-@app.post("/auth/register", response_model=UserResponse, status_code=201, tags=["Autenticación"],
-         dependencies=[Depends(required_roles(["admin"]))]) 
+
+# --- MODIFICADO: Registro LIBRE (Sin protección) para crear el primer admin ---
+@app.post("/auth/register", response_model=UserResponse, status_code=201, tags=["Autenticación"])
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     try:
-        # ... (el resto de tu función) ...
         db_user = db.query(User).filter(User.username == user.username).first()
         if db_user:
             raise HTTPException(status_code=400, detail="Username already registered")
@@ -180,6 +179,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error en la base de datos al registrar: {str(e)}")
     except Exception as e:
         db.rollback()
+        # CORREGIDO: Se eliminó el doble paréntesis al final
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 @app.post("/auth/token", response_model=Token, tags=["Autenticación"])
@@ -199,3 +199,4 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+        
