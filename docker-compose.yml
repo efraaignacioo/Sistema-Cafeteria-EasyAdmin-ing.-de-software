@@ -40,6 +40,7 @@ services:
       MYSQL_HOST: db
       TELEGRAM_TOKEN: "8376718290:AAGSouC1sSzKcDdaS-o9t5ko8WA893nnJe8"
       TELEGRAM_CHAT_ID: "-5034080605"
+      FRONTEND_URL: "http://127.0.0.1:5500"  # <-- NUEVO: Haz este valor configurable
 
   # ----------------------------------------------------
   # 3. Microservicio de Autenticación (Puerto 8002) ¡NUEVO!

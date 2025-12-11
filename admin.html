@@ -14,130 +14,189 @@
 
     <main class="dashboard">
         
-        <section class="card" id="user-management">
-            <h2>Gestión de Usuarios</h2>
-            <form id="register-form">
-                <p>Registrar un nuevo empleado:</p>
-                <div class="form-group">
-                    <label for="new-username">Nombre de usuario:</label>
-                    <input type="text" id="new-username" required>
-                </div>
-                <div class="form-group">
-                    <label for="new-password">Contraseña:</label>
-                    <input type="password" id="new-password" required>
-                </div>
-                <div class="form-group">
-                    <label for="new-role">Rol del empleado:</label>
-                    <select id="new-role" required>
-                        <option value="">Selecciona un rol...</option>
-                        <option value="cajero">Cajero</option>
-                        <option value="cocinero">Cocinero</option>
-                        <option value="admin">Administrador</option>
-                    </select>
-                </div>
-                <button type="submit" class="button-link">Registrar Usuario</button>
-                <p id="register-message"></p>
-            </form>
-        </section>
+        <div class="column-left">
+            
+            <section class="card" id="user-management">
+                <h2>Gestión de Usuarios</h2>
+                <form id="register-form">
+                    <p>Registrar un nuevo empleado:</p>
+                    <div class="form-group">
+                        <label for="new-username">Nombre de usuario:</label>
+                        <input type="text" id="new-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-password">Contraseña:</label>
+                        <input type="password" id="new-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-role">Rol del empleado:</label>
+                        <select id="new-role" required>
+                            <option value="">Selecciona un rol...</option>
+                            <option value="cajero">Cajero</option>
+                            <option value="cocinero">Cocinero</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="button-link">Registrar Usuario</button>
+                    <p id="register-message"></p>
+                </form>
+            </section>
+            
+            <section class="card" id="category-management">
+                <h2>Gestión de Categorías</h2>
+                <form id="create-category-form" style="display: flex; gap: 10px; align-items: flex-end;">
+                    <div class="form-group">
+                        <label>Nueva Categoría:</label>
+                        <input type="text" id="new-category-name" required>
+                    </div>
+                    <button type="submit" class="button-link" style="margin-bottom: 2px;">Crear Categoría</button>
+                </form>
+                <p id="category-message"></p>
+                <hr>
+                <h3>Categorías Existentes:</h3>
+                <div id="category-list-container" style="display: flex; flex-direction: column; gap: 10px;">
+                    </div>
+            </section>
 
-        <section class="card" id="menu-management">
-            <h2>Gestión de Menú</h2>
-            <button id="show-create-form-button" class="button-link">Crear Nuevo Producto</button>
-            <hr>
-            <h3>Productos Actuales:</h3>
-            <div id="product-list-container">
-                </div>
-        </section>
-
-        <section class="card" id="order-management">
-            <h2>Gestión de Pedidos</h2>
-            <h3>Historial General de Pedidos:</h3>
-            <div id="admin-order-list">
-                </div>
-        </section>
-        <section class="card" id="tables-management">
-    <h2>Gestión de Mesas y QRs</h2>
-    <form id="create-table-form" style="display: flex; gap: 10px; align-items: flex-end;">
-        <div class="form-group">
-            <label>Nombre (Ej: Mesa 1):</label>
-            <input type="text" id="new-table-name" required>
+            <section class="card" id="tables-management">
+                <h2>Gestión de Mesas y QRs</h2>
+                <form id="create-table-form" style="display: flex; gap: 10px; align-items: flex-end;">
+                    <div class="form-group">
+                        <label>Nombre (Ej: Mesa 1):</label>
+                        <input type="text" id="new-table-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Sección (Ej: Terraza):</label>
+                        <input type="text" id="new-table-section" required>
+                    </div>
+                    <button type="submit" class="button-link" style="margin-bottom: 2px;">Crear Mesa</button>
+                </form>
+                <hr>
+                <h3>Mesas Existentes:</h3>
+                <div id="tables-list-container" style="display: flex; flex-direction: column; gap: 10px;">
+                    </div>
+            </section>
         </div>
-        <div class="form-group">
-            <label>Sección (Ej: Terraza):</label>
-            <input type="text" id="new-table-section" required>
-        </div>
-        <button type="submit" class="button-link" style="margin-bottom: 2px;">Crear Mesa</button>
-    </form>
-    <hr>
-    <h3>Mesas Existentes:</h3>
-    <div id="tables-list-container" style="display: flex; flex-direction: column; gap: 10px;">
-        </div>
-</section>
 
-<div id="qr-modal-overlay" class="modal-overlay hidden">
-    <div class="modal" style="text-align: center;">
-        <button id="close-qr-modal" class="close-button">&times;</button>
-        <h2>Código QR de la Mesa</h2>
-        <div id="qr-image-container"></div>
-        <p id="qr-link-text" style="word-break: break-all; color: #555; margin-top: 10px;"></p>
-        <a id="open-qr-link" href="#" target="_blank" class="button-link">Abrir Link (Simular Escaneo)</a>
-    </div>
-</div>
+        <div class="column-right">
+            
+            <section class="card" id="order-management">
+                <h2>Gestión de Pedidos</h2>
+                <h3>Historial General de Pedidos:</h3>
+                <div id="admin-order-list">
+                    </div>
+            </section>
+            
+            <section class="card" id="menu-management">
+                <h2>Gestión de Menú</h2>
+                <button id="show-create-form-button" class="button-link">Crear Nuevo Producto</button>
+                <hr>
+                <h3>Productos Actuales:</h3>
+                <div id="product-list-container">
+                    </div>
+            </section>
 
-        <section class="card" id="reports-management">
-            <h2>Reportes</h2>
-            <button id="get-daily-report-button" class="button-link">Obtener Reporte de Hoy</button>
-            <div id="report-results">
-            </div>
-        </section>
+            <section class="card" id="customization-management">
+                <h2>🎨 Personalización del Menú</h2>
+                <form id="settings-form">
+                    
+                    <h3>Contenido Fijo</h3>
+                    <div class="form-group">
+                        <label for="menu-title">Título Principal del Menú:</label>
+                        <input type="text" id="menu-title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="header-image-url">URL de Imagen bajo el Título (Opcional):</label>
+                        <input type="text" id="header-image-url" placeholder="Ej: assets/logo.png o URL externa">
+                    </div>
+
+                    <h3>Colores y Modo Visual</h3>
+                    <p>Modo Visual:</p>
+                    <div class="form-group" style="display:flex; gap:15px; margin-bottom: 20px;">
+                        <label><input type="radio" name="modo-visual" value="claro" id="mode-claro" required> Claro (Fondo Blanco)</label>
+                        <label><input type="radio" name="modo-visual" value="oscuro" id="mode-oscuro" required> Oscuro (Fondo Negro)</label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="color-secundario">Color de Acento (Botones, Links):</label>
+                        <input type="color" id="color-secundario" value="#8A9A5B" required>
+                    </div>
+
+                    <button type="submit" class="button-link">Guardar Configuración</button>
+                    <p id="settings-message"></p>
+                </form>
+            </section>
+            <section class="card" id="reports-management">
+                <h2>Reportes</h2>
+                <button id="get-daily-report-button" class="button-link">Obtener Reporte de Hoy</button>
+                <div id="report-results">
+                </div>
+            </section>
+            
+            <section class="card" id="kds-link">
+                <h2>Ver KDS</h2>
+                <p>Acceder a la vista de la cocina.</p>
+                <a href="kds.html" class="button-link">Ir al KDS</a>
+            </section>
+        </div>
         
-        <section class="card" id="kds-link">
-            <h2>Ver KDS</h2>
-            <p>Acceder a la vista de la cocina.</p>
-            <a href="kds.html" class="button-link">Ir al KDS</a>
-        </section>
-    </main>
+        <div id="qr-modal-overlay" class="modal-overlay hidden">
+            <div class="modal" style="text-align: center;">
+                <button id="close-qr-modal" class="close-button">&times;</button>
+                <h2>Código QR de la Mesa</h2>
+                <div id="qr-image-container"></div>
+                <p id="qr-link-text" style="word-break: break-all; color: #555; margin-top: 10px;"></p>
+                <a id="open-qr-link" href="#" target="_blank" class="button-link">Abrir Link (Simular Escaneo)</a>
+            </div>
+        </div>
 
-    <div id="modal-overlay" class="modal-overlay hidden">
-        <div id="create-product-modal" class="modal">
-            <button id="close-modal-button" class="close-button">&times;</button>
-            <h2 id="modal-title">Crear Nuevo Producto</h2>
-            <form id="create-product-form">
-                <div class="form-group">
-                    <label for="product-name">Nombre del Producto:</label>
-                    <input type="text" id="product-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="product-description">Descripción:</label>
-                    <input type="text" id="product-description" required>
-                </div>
-                <div class="form-group">
-                    <label for="product-price">Precio:</label>
-                    <input type="number" id="product-price" min="1" required>
-                </div>
-                <button type="submit" class="button-link">Guardar Producto</button>
-                <p id="create-product-message"></p>
-            </form>
+        <div id="modal-overlay" class="modal-overlay hidden">
+            <div id="create-product-modal" class="modal">
+                <button id="close-modal-button" class="close-button">&times;</button>
+                <h2 id="modal-title">Crear Nuevo Producto</h2>
+                <form id="create-product-form">
+                    <div class="form-group">
+                        <label for="product-name">Nombre del Producto:</label>
+                        <input type="text" id="product-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="product-description">Descripción:</label>
+                        <input type="text" id="product-description" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="product-price">Precio:</label>
+                        <input type="number" id="product-price" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="product-category">Categoría:</label>
+                        <select id="product-category" required>
+                            <option value="">Cargando categorías...</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="button-link">Guardar Producto</button>
+                    <p id="create-product-message"></p>
+                </form>
+            </div>
         </div>
-    </div>
-    
-    <div id="payment-modal-overlay" class="modal-overlay hidden">
-        <div id="payment-modal" class="modal">
-            <button id="close-payment-modal-button" class="close-button">&times;</button>
-            <h2 id="payment-modal-title">Procesar Pago</h2>
-            <form id="payment-form">
-                <p>Selecciona el método de pago para el pedido:</p>
-                <div class="form-group">
-                    <select id="payment-method" required>
-                        <option value="efectivo">Efectivo</option>
-                        <option value="tarjeta">Tarjeta</option>
-                    </select>
-                </div>
-                <button type="submit" class="button-link">Confirmar Pago</button>
-                <p id="payment-message"></p>
-            </form>
+        
+        <div id="payment-modal-overlay" class="modal-overlay hidden">
+            <div id="payment-modal" class="modal">
+                <button id="close-payment-modal-button" class="close-button">&times;</button>
+                <h2 id="payment-modal-title">Procesar Pago</h2>
+                <form id="payment-form">
+                    <p>Selecciona el método de pago para el pedido:</p>
+                    <div class="form-group">
+                        <select id="payment-method" required>
+                            <option value="efectivo">Efectivo</option>
+                            <option value="tarjeta">Tarjeta</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="button-link">Confirmar Pago</button>
+                    <p id="payment-message"></p>
+                </form>
+            </div>
         </div>
-    </div>
+    </main>
     
     <script src="admin.js"></script>
 </body>

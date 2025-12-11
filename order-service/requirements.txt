@@ -6,4 +6,4 @@ cryptography
 python-jose
 qrcode
 pillow
-requests 
+requests

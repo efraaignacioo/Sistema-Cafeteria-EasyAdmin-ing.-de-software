@@ -78,11 +78,50 @@ document.addEventListener('DOMContentLoaded', () => {
             registerMessage.className = 'error';
         }
     });
-
-    // 4. GESTIÓN DE MENÚ (Carga inicial)
-    cargarProductosAdmin();
     
-    // 5. MODALES DE PRODUCTOS
+    // 4. GESTIÓN DE CATEGORÍAS
+    const createCategoryForm = document.getElementById('create-category-form');
+    const categoryMessage = document.getElementById('category-message');
+
+    // Cargar categorías al inicio
+    cargarCategorias();
+
+    createCategoryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        categoryMessage.textContent = '';
+        categoryMessage.className = '';
+        const name = document.getElementById('new-category-name').value;
+        const token = getToken();
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ name })
+            });
+            
+            if(!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Error al crear la categoría');
+            }
+            createCategoryForm.reset();
+            categoryMessage.textContent = `Categoría "${name}" creada con éxito.`;
+            categoryMessage.className = 'success';
+            cargarCategorias(); 
+            cargarSelectCategorias(); 
+        } catch (error) {
+            console.error(error);
+            categoryMessage.textContent = error.message;
+            categoryMessage.className = 'error';
+        }
+    });
+
+    // 5. GESTIÓN DE MENÚ (Carga inicial)
+    cargarProductosAdmin();
+    // Cargar el select del modal de productos
+    cargarSelectCategorias(); 
+    
+    // 6. MODALES DE PRODUCTOS
     const modalOverlay = document.getElementById('modal-overlay');
     const modalTitle = document.getElementById('modal-title');
     const createProductForm = document.getElementById('create-product-form');
@@ -101,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEditingId = null; 
         modalTitle.textContent = 'Crear Nuevo Producto'; 
         createProductForm.reset(); 
+        cargarSelectCategorias(); 
         modalOverlay.classList.remove('hidden');
     });
     
@@ -113,35 +153,42 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         createProductMessage.textContent = '';
         const token = getToken();
-        // Convertimos el precio a float, si falla pone 0 (el backend validará si es <= 0)
+        
         const priceVal = parseFloat(document.getElementById('product-price').value);
+        const categoryId = document.getElementById('product-category').value; 
         
         const productData = {
             name: document.getElementById('product-name').value,
             description: document.getElementById('product-description').value,
-            price: isNaN(priceVal) ? 0 : priceVal
+            price: isNaN(priceVal) ? 0 : priceVal,
+            category_id: parseInt(categoryId)
         };
         try {
             let response;
             let successMessage;
+            
+            let url = 'http://127.0.0.1:8000/menu';
+            let method = 'POST';
+
             if (currentEditingId) {
-                response = await fetch(`http://127.0.0.1:8000/menu/${currentEditingId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify(productData)
-                });
+                url = `http://127.0.0.1:8000/menu/${currentEditingId}`;
+                method = 'PUT';
+            }
+
+            response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(productData)
+            });
+            
+            if (currentEditingId) {
                 successMessage = `¡Producto "${productData.name}" actualizado con éxito!`;
             } else {
-                response = await fetch('http://127.0.0.1:8000/menu', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify(productData)
-                });
                 successMessage = `¡Producto "${productData.name}" creado con éxito!`;
             }
+            
             if (!response.ok) {
                 const errorData = await response.json();
-                // Manejo de errores detallado de Pydantic
                 let errorMessage = errorData.detail || 'Error al guardar.';
                 if (Array.isArray(errorData.detail)) {
                     errorMessage = errorData.detail.map(e => e.msg).join(' | ');
@@ -157,10 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 6. GESTIÓN DE PEDIDOS (Carga inicial)
+    // 7. GESTIÓN DE PEDIDOS (Carga inicial)
     cargarTodosLosPedidosAdmin();
 
-    // 7. MODAL DE PAGO
+    // 8. MODAL DE PAGO
     const paymentModalOverlay = document.getElementById('payment-modal-overlay');
     const closePaymentModalButton = document.getElementById('close-payment-modal-button');
     const paymentForm = document.getElementById('payment-form');
@@ -201,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 8. REPORTES
+    // 9. REPORTES
     const getReportButton = document.getElementById('get-daily-report-button');
     const reportResultsDiv = document.getElementById('report-results');
 
@@ -235,9 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 9. GESTIÓN DE MESAS Y QRs (NUEVO) ---
-    // Esta parte estaba mal pegada antes. Ahora está correctamente integrada.
-    
+    // 10. GESTIÓN DE MESAS Y QRs
     const createTableForm = document.getElementById('create-table-form');
     
     // Cargar mesas al inicio
@@ -274,11 +319,195 @@ document.addEventListener('DOMContentLoaded', () => {
     const qrModal = document.getElementById('qr-modal-overlay');
     document.getElementById('close-qr-modal').addEventListener('click', () => qrModal.classList.add('hidden'));
 
+    // --- 11. GESTIÓN DE PERSONALIZACIÓN (AJUSTES DE MENÚ) ---
+    const settingsForm = document.getElementById('settings-form');
+    const settingsMessage = document.getElementById('settings-message');
+
+    // Cargar configuración actual al inicio
+    cargarSettings();
+
+    settingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        settingsMessage.textContent = '';
+        settingsMessage.className = '';
+        
+        // Capturamos los campos de Contenido Fijo
+        const menuTitle = document.getElementById('menu-title').value;
+        const headerImageUrl = document.getElementById('header-image-url').value;
+        
+        // Capturamos los campos de Colores
+        // ELIMINADO: const principal = document.getElementById('color-principal').value;
+        const secundario = document.getElementById('color-secundario').value;
+        const modo = document.querySelector('input[name="modo-visual"]:checked').value;
+        
+        const token = getToken();
+        const newSettings = {
+            // ELIMINADO: color_principal: principal,
+            color_secundario: secundario,
+            modo_visual: modo,
+            
+            // CAMPOS CORRECTOS
+            menu_title: menuTitle, 
+            header_image_url: headerImageUrl
+        };
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(newSettings)
+            });
+            
+            if(!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Error al guardar configuración');
+            }
+            
+            settingsMessage.textContent = '¡Configuración de contenido y colores guardada con éxito!';
+            settingsMessage.className = 'success';
+        } catch (error) {
+            console.error(error);
+            settingsMessage.textContent = error.message;
+            settingsMessage.className = 'error';
+        }
+    });
+
+
 }); // --- FIN DEL DOMContentLoaded ---
 
 
-// --- FUNCIONES AUXILIARES (Fuera del DOMContentLoaded) ---
+// --- FUNCIONES AUXILIARES ---
 
+// FUNCIÓN AUXILIAR: Cargar configuración para el formulario
+async function cargarSettings() {
+    const token = getToken(); 
+    
+    try {
+        const response = await fetch('http://127.0.0.1:8000/settings', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Error al cargar la configuración inicial.');
+
+        const settings = await response.json();
+        
+        // CARGAR NUEVOS CAMPOS DE CONTENIDO
+        document.getElementById('menu-title').value = settings.menu_title || 'Menú Principal';
+        document.getElementById('header-image-url').value = settings.header_image_url || '';
+
+        // Cargar los selectores de color
+        // ELIMINADO: document.getElementById('color-principal').value = settings.color_principal;
+        document.getElementById('color-secundario').value = settings.color_secundario;
+        
+        // Cargar el modo visual (radio button)
+        const radio = document.getElementById(`mode-${settings.modo_visual}`);
+        if(radio) radio.checked = true;
+
+    } catch (error) {
+        console.error('Error al cargar settings:', error);
+    }
+}
+
+// FUNCIÓN: Cargar Categorías en el listado
+async function cargarCategorias() {
+    const container = document.getElementById('category-list-container');
+    const token = getToken();
+    container.innerHTML = '<p>Cargando...</p>';
+
+    try {
+        const response = await fetch('http://127.0.0.1:8000/categories', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Error al cargar categorías.');
+        
+        const categorias = await response.json();
+        container.innerHTML = ''; 
+        
+        if (categorias.length === 0) {
+            container.innerHTML = '<p>No hay categorías registradas.</p>';
+            return;
+        }
+        
+        categorias.forEach(cat => {
+            const catDiv = document.createElement('div');
+            catDiv.className = 'product-item'; 
+            catDiv.innerHTML = `
+                <div class="product-item-info">
+                    <strong>${cat.name}</strong>
+                    <small>(ID: ${cat.id})</small>
+                </div>
+                <button class="delete-category-button delete-product-button" data-id="${cat.id}" data-name="${cat.name}">Eliminar</button>
+            `;
+            catDiv.querySelector('.delete-category-button').addEventListener('click', () => {
+                eliminarCategoria(cat.id, cat.name);
+            });
+            container.appendChild(catDiv);
+        });
+    } catch (error) {
+        console.error('Error al cargar categorías:', error);
+        container.innerHTML = `<p class="error">${error.message}</p>`;
+    }
+}
+
+// FUNCIÓN: Cargar Categorías en el select del modal de productos
+async function cargarSelectCategorias() {
+    const select = document.getElementById('product-category');
+    const token = getToken();
+    select.innerHTML = '<option value="">Cargando categorías...</option>';
+
+    try {
+        const response = await fetch('http://127.0.0.1:8000/categories', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Error al cargar categorías.');
+        
+        const categorias = await response.json();
+        select.innerHTML = '<option value="">Selecciona una categoría...</option>'; 
+        
+        categorias.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat.id;
+            option.textContent = cat.name;
+            select.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error('Error al cargar select categorías:', error);
+        select.innerHTML = '<option value="">Error al cargar</option>';
+    }
+}
+
+// FUNCIÓN: Eliminar Categoría
+async function eliminarCategoria(categoryId, categoryName) {
+    if (!confirm(`¿Eliminar la categoría "${categoryName}"? Los productos asociados serán desvinculados.`)) return;
+    const token = getToken(); 
+    const categoryMessage = document.getElementById('category-message');
+    categoryMessage.textContent = '';
+    categoryMessage.className = '';
+
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/categories/${categoryId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+             const errorData = await response.json();
+             throw new Error(errorData.detail || 'Error al eliminar la categoría.');
+        }
+        
+        categoryMessage.textContent = `¡Categoría "${categoryName}" eliminada!`;
+        categoryMessage.className = 'success';
+        cargarCategorias(); 
+        cargarSelectCategorias(); 
+        cargarProductosAdmin(); 
+    } catch (error) {
+        categoryMessage.textContent = error.message;
+        categoryMessage.className = 'error';
+    }
+}
+
+// FUNCIÓN: cargarProductosAdmin
 async function cargarProductosAdmin() {
     const productListContainer = document.getElementById('product-list-container');
     const token = getToken(); 
@@ -300,9 +529,12 @@ async function cargarProductosAdmin() {
         productos.forEach(producto => {
             const productoDiv = document.createElement('div');
             productoDiv.className = 'product-item';
+            // Muestra la categoría
+            const categoryName = producto.category_name || 'Sin Categoría';
             productoDiv.innerHTML = `
                 <div class="product-item-info">
-                    <strong>${producto.name}</strong>
+                    <strong>${producto.name}</strong> 
+                    <small>[${categoryName}]</small> 
                     <span>($${producto.price ? producto.price.toFixed(0) : 'N/A'})</span>
                 </div>
                 <div class="product-item-actions">
@@ -324,15 +556,19 @@ async function cargarProductosAdmin() {
     }
 }
 
+// FUNCIÓN: prepararEdicion
 function prepararEdicion(producto) {
     currentEditingId = producto.id;
     document.getElementById('modal-title').textContent = 'Editar Producto';
     document.getElementById('product-name').value = producto.name;
     document.getElementById('product-description').value = producto.description;
     document.getElementById('product-price').value = producto.price;
+    // Establece la categoría actual en el select
+    document.getElementById('product-category').value = producto.category_id; 
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
+// FUNCIÓN: eliminarProducto
 async function eliminarProducto(productoId, productoNombre) {
     if (!confirm(`¿Eliminar "${productoNombre}"?`)) return;
     const token = getToken(); 
@@ -349,7 +585,7 @@ async function eliminarProducto(productoId, productoNombre) {
     }
 }
 
-// --- Gestión de Pedidos ---
+// FUNCIÓN: cargarTodosLosPedidosAdmin
 async function cargarTodosLosPedidosAdmin() {
     const token = getToken();
     const orderListDiv = document.getElementById('admin-order-list');
@@ -424,6 +660,7 @@ async function cargarTodosLosPedidosAdmin() {
     }
 }
 
+// FUNCIÓN: generarBoleta
 async function generarBoleta(orderId) {
     const token = getToken();
     try {
@@ -447,7 +684,7 @@ async function generarBoleta(orderId) {
     }
 }
 
-// --- Gestión de Mesas (Funciones Auxiliares) ---
+// FUNCIÓN: cargarMesas
 async function cargarMesas() {
     const tablesListContainer = document.getElementById('tables-list-container');
     const token = getToken();
@@ -481,6 +718,7 @@ async function cargarMesas() {
     }
 }
 
+// FUNCIÓN: mostrarQR
 async function mostrarQR(id, name, qrId) {
     const token = getToken();
     const qrModal = document.getElementById('qr-modal-overlay');

@@ -7,7 +7,7 @@ import json
 import uuid
 import io
 import qrcode
-import requests # <--- NUEVO: Para hablar con Telegram
+import requests # <-- CLAVE: Importado para la comunicación entre servicios
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Query
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
@@ -20,6 +20,7 @@ from typing import List, Optional
 from datetime import datetime, date
 from enum import Enum
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm.exc import NoResultFound # Para buscar la mesa
 
 # ----------------------------------------------------
 # 0. CONFIGURACIÓN DE SEGURIDAD
@@ -65,7 +66,7 @@ def required_roles(roles: List[str]):
 # ----------------------------------------------------
 app = FastAPI(
     title="API de Pedidos y Mesas - EasyAdmin",
-    version="1.4.0" # Versión con Telegram
+    version="1.4.1" 
 )
 app.add_middleware(
     CORSMiddleware,
@@ -83,6 +84,9 @@ DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# --- Frontend Config ---
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500") # <-- Leemos la URL del frontend
+
 Base = declarative_base()
 engine = None
 SessionLocal = None
@@ -90,11 +94,6 @@ SessionLocal = None
 # ----------------------------------------------------
 # 2. MODELOS DE BASE DE DATOS (SQLAlchemy)
 # ----------------------------------------------------
-class Product(Base):
-    __tablename__ = "products"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, index=True)
-    price = Column(Float)
 
 class Order(Base):
     __tablename__ = "orders"
@@ -158,8 +157,56 @@ class TableResponse(BaseModel):
     class Config: from_attributes = True
 
 # ----------------------------------------------------
-# 4. FUNCIONES AUXILIARES (Telegram)
+# 4. FUNCIONES AUXILIARES
 # ----------------------------------------------------
+
+# NUEVA FUNCIÓN: Obtiene los precios reales del Product Service
+def fetch_product_prices() -> dict:
+    """Obtiene un diccionario de precios {nombre: precio} desde el product-service
+       usando el nombre del servicio Docker."""
+    # Usamos el nombre del servicio Docker 'product-service' y el puerto 8000
+    PRODUCT_SERVICE_URL = "http://product-service:8000/menu"
+    
+    try:
+        # Se necesita un timeout en peticiones entre microservicios
+        response = requests.get(PRODUCT_SERVICE_URL, timeout=5)
+        response.raise_for_status() # Lanza un error para códigos de estado 4xx/5xx
+        
+        products = response.json()
+        
+        # Mapea los productos a un diccionario {nombre: precio}
+        price_map = {product['name']: product['price'] for product in products}
+        
+        return price_map
+
+    except requests.exceptions.RequestException as e:
+        # Esto ocurre si el product-service está caído o no es accesible
+        print(f"❌ Error al conectar con product-service para obtener precios: {e}")
+        return {}
+
+
+# MODIFICADO: Función para calcular el total usando los precios reales
+def calcular_total_pedido(items: List[str]) -> float:
+    """Calcula el total real del pedido consultando los precios del product-service."""
+    
+    price_map = fetch_product_prices()
+    
+    if not price_map:
+        # Si la consulta falla, usamos 0.0 o un precio fijo, pero esto indicarÃ¡ una venta fallida
+        # En este caso, lo dejamos en 0.0 y el reporte lo ignorarÃ¡ o serÃ¡ 0
+        FALLBACK_PRICE = 0.0
+        print(f"⚠️ Fallback: Usando precio fijo de {FALLBACK_PRICE} por ítem (el product-service no respondió).")
+        return len(items) * FALLBACK_PRICE
+        
+    total = 0.0
+    for item_name in items:
+        # Utiliza el precio real o 0.0 si el producto no se encuentra (indicando un error de inventario)
+        price = price_map.get(item_name, 0.0) 
+        total += price
+        
+    return total
+
+
 def enviar_notificacion_telegram(mensaje: str):
     """Envía un mensaje al grupo de Telegram configurado."""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -211,12 +258,10 @@ def get_db():
 
 def verify_ws_token(token: str):
     try:
-        # Imprimimos el token para depurar (solo los primeros caracteres)
         print(f"🔍 Verificando token: {token[:15]}...")
         
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
-        # Verificamos si tiene rol
         if not payload.get("role"): 
             print("❌ El token no tiene campo 'role'")
             raise Exception("Token sin rol")
@@ -224,7 +269,6 @@ def verify_ws_token(token: str):
         print(f"✅ Token válido. Usuario: {payload.get('sub')}, Rol: {payload.get('role')}")
         return payload
     except Exception as e:
-        # ¡Aquí está la clave! Imprimimos el error exacto
         print(f"❌ Error al decodificar token WS: {str(e)}")
         return None
 
@@ -262,8 +306,10 @@ def listar_mesas(db: Session = Depends(get_db)):
 def obtener_qr_mesa(table_id: int, db: Session = Depends(get_db)):
     mesa = db.query(Table).filter(Table.id == table_id).first()
     if not mesa: raise HTTPException(status_code=404, detail="Mesa no encontrada")
-    # Para el despliegue local, usamos 127.0.0.1
-    qr_content = f"http://127.0.0.1:5500/index.html?mesa={mesa.qr_id}"
+    
+    # Usamos la variable de entorno FRONTEND_URL
+    qr_content = f"{FRONTEND_URL}/index.html?mesa={mesa.qr_id}"
+    
     qr = qrcode.QRCode(box_size=10, border=4)
     qr.add_data(qr_content); qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
@@ -280,18 +326,13 @@ async def crear_pedido(pedido: OrderCreate, db: Session = Depends(get_db)):
         mesa_numero = mesa_db.id
         qr_usado = pedido.qr_id
 
-    total_price = 0.0
-    for name in pedido.items:
-        prod = db.query(Product).filter(Product.name == name).first()
-        if prod and prod.price: total_price += prod.price
+    # CLAVE: Calculamos el total usando el fetch al product-service
+    total_price = calcular_total_pedido(pedido.items)
 
     db_order = Order(items=", ".join(pedido.items), total=total_price, table_number=mesa_numero, qr_id_used=qr_usado)
     db.add(db_order); db.commit(); db.refresh(db_order)
     resp = OrderResponse.model_validate(db_order)
     
-    # Notificación opcional: Nuevo pedido
-    # enviar_notificacion_telegram(f"🆕 *Nuevo Pedido #{resp.id}*\nMesa: {resp.table_number}")
-
     await manager.broadcast({"type": "new_order", "data": resp.model_dump()})
     return resp
 
@@ -330,6 +371,12 @@ async def pagar_pedido(order_id: int, pay: PaymentRequest, db: Session = Depends
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order: raise HTTPException(404)
     if order.status == "Pagado": raise HTTPException(409, "Ya pagado")
+    
+    # Recalculamos el total antes de pagar (si es necesario)
+    if order.total == 0.0:
+        items_list = [item.strip() for item in order.items.split(',') if item.strip()]
+        order.total = calcular_total_pedido(items_list)
+
     order.status = "Pagado"; order.payment_method = pay.method
     db.commit(); db.refresh(order)
     resp = OrderResponse.model_validate(order)

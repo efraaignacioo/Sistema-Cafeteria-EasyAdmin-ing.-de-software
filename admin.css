@@ -25,12 +25,22 @@ header h1 {
     cursor: pointer;
     font-size: 16px;
 }
+/* MODIFICADO para usar Flexbox y Columnas */
 .dashboard {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    display: flex; 
     gap: 20px;
     padding: 20px;
+    align-items: flex-start; /* Alinea arriba */
 }
+/* NUEVO: Columnas */
+.column-left,
+.column-right {
+    display: flex;
+    flex-direction: column;
+    gap: 20px; 
+    flex: 1; /* Ambas columnas toman el mismo ancho */
+}
+
 .card {
     background-color: white;
     border-radius: 8px;
@@ -85,8 +95,9 @@ header h1 {
     color: red;
 }
 
-/* --- Estilos para la Gestión de Menú --- */
-#product-list-container {
+/* --- Estilos para la Gestión de Menú / Categorías --- */
+#product-list-container,
+#category-list-container {
     margin-top: 20px;
     display: flex;
     flex-direction: column;
@@ -113,7 +124,7 @@ header h1 {
     color: #555;
     margin-left: 10px;
 }
-.delete-product-button {
+.delete-product-button, .delete-category-button { /* Añadida clase para Categoría */
     background-color: #D32F2F; /* Rojo */
     color: white;
     border: none;
@@ -189,7 +200,7 @@ hr {
 
 /* --- Estilos para la Gestión de Pedidos (Admin) --- */
 #admin-order-list {
-    max-height: 50vh; /* Límite de altura */
+    max-height: 40vh; /* Ajustado para la nueva columna */
     overflow-y: auto; /* Scroll si es muy largo */
     display: flex;
     flex-direction: column;
@@ -202,7 +213,7 @@ hr {
     border-radius: 8px;
     padding: 15px;
     background: #fafafa;
-    position: relative; /* <-- ¡NUEVO! Para posicionar el botón 'x' */
+    position: relative; 
 }
 .order-card-admin.pagado {
     border-left-color: #4CAF50; /* Verde si está pagado */
@@ -269,8 +280,7 @@ hr {
     color: #4CAF50; /* Verde */
 }
 
-/* --- ¡NUEVO CSS AÑADIDO! --- */
-/* Estilo para el botón 'x' de ocultar */
+/* --- Estilo para el botón 'x' de ocultar --- */
 .hide-order-button {
     position: absolute;
     top: 5px;

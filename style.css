@@ -1,78 +1,197 @@
-/* --- Estilos generales para la página --- */
+/* --- Variables CSS para colores --- */
+:root {
+    --color-secundario: #8A9A5B; /* Verde olivo (Botones, Acentos) */
+    --bg-general: #e0e0e0; /* Color de fondo del body (gris, para el modo sin estampado) */
+    --bg-tarjeta: #FFFFFF; /* Fondo de las tarjetas de item (debe ser sólido) */
+    --color-texto-principal: #333; /* Variable para texto principal (cambiará en modo oscuro) */
+    --color-texto-secundario: #555;
+    --color-separador: #eee;
+    --bg-image-url: none; /* URL de la imagen del estampado, controlada por JS */
+}
+
+/* --- Estilos generales para la página (body) --- */
 body {
-    display: flex; /* Centra el contenido */
+    display: flex; 
     justify-content: center;
     align-items: center;
     min-height: 100vh;
     margin: 0;
-    background-color: #e0e0e0; /* Fondo gris para resaltar */
-    font-family: 'Poppins', sans-serif; /* Tipo de letra */
+    
+    /* FONDO GRIS SÓLIDO (sin imagen) */
+    background-color: var(--bg-general); 
+    
+    font-family: 'Poppins', sans-serif; 
 }
 
-/* --- La pantalla del celular --- */
+/* --- La pantalla del celular (EL RECUADRO CON EL ESTAMPADO) --- */
 .mobile-screen {
     width: 375px;
     height: 812px;
-    background-color: #F9F5EF; /* Color crema del fondo */
+    
+    /* CLAVE: APLICAMOS EL ESTAMPADO AQUÍ */
+    background-color: #F9F5EF; 
+    background-image: var(--bg-image-url);
+    
+    /* MODIFICADO: La imagen NO se repite y se estira 100% */
+    background-repeat: no-repeat; 
+    background-size: 100% 100%; 
+    
+    background-position: center center; 
+    
     border-radius: 40px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    padding: 20px;
+    
+    display: flex;
+    flex-direction: column;
+    
+    position: relative; 
+    padding: 0; 
+}
+
+/* Contenedor interno que lleva el contenido (Legibilidad) */
+.content-wrapper {
+    flex-grow: 1; 
+    /* Fondo TRANSPARENTE para que se vea el estampado de mobile-screen */
+    background-color: transparent; 
+    border-radius: 40px; 
     box-sizing: border-box;
-    display: flex; /* Organiza los elementos internos */
-    flex-direction: column; /* Pone los elementos uno encima de otro */
+    padding: 20px; 
+    
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; 
 }
 
-/* --- El contenedor principal del menú --- */
-main {
-    flex-grow: 1; /* Hace que esta sección ocupe todo el espacio disponible */
-    overflow-y: auto; /* Agrega una barra de scroll si el menú es muy largo */
+/* MINI FONDO SÓLIDO PARA EL HEADER (Título y Logo) */
+#menu-header {
+    /* Centra los elementos (título e imagen) */
+    text-align: center; 
+    margin-bottom: 20px;
+    /* Mini fondo: Color semi-transparente para la legibilidad */
+    background-color: rgba(255, 255, 255, 0.9); 
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-/* --- Estilo para los títulos de categoría (ej: "Cafés") --- */
+/* Centrar la imagen dentro del header */
+#header-image {
+    display: block; /* Asegura que se comporte como bloque para centrar */
+    margin: 0 auto; /* Centrado horizontal */
+    max-width: 100%; 
+    height: auto; 
+    max-height: 100px;
+}
+
+/* ESTILO DEL TÍTULO */
+#main-menu-title {
+    /* MODIFICADO: Color fijo negro */
+    color: #333; 
+    font-size: 28px;
+    margin: 10px 0 5px 0;
+}
+
+/* --- Estilo para los títulos de categoría (Mini fondo para títulos de categoría) --- */
 .category h2 {
     font-size: 28px;
-    color: #333;
+    /* Mantiene la variable para que el texto de categoría sí se invierta en modo oscuro */
+    color: var(--color-texto-principal); 
     margin-top: 20px;
     margin-bottom: 15px;
+    
+    /* Mini fondo: Color semi-transparente para la legibilidad */
+    display: inline-block; 
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 5px 10px;
+    border-radius: 5px;
+    
+    /* Restaurar márgenes */
+    width: auto;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
-.category:first-child h2 {
-    margin-top: 0; /* Quita el espacio extra del primer título */
+
+/* --- El contenedor principal del menú (ahora solo un sub-contenedor del wrapper) --- */
+main {
+    flex-grow: 1; 
+    padding-bottom: 20px; 
 }
 
 /* --- Estilo para cada producto del menú --- */
 .menu-item {
     display: flex;
-    justify-content: space-between; /* Pone el nombre a la izquierda y el botón a la derecha */
+    justify-content: space-between; 
     align-items: center;
-    background-color: #FFFFFF; /* Fondo blanco */
+    background-color: var(--bg-tarjeta); /* Fondo BLANCO SÓLIDO */
     padding: 16px;
     border-radius: 12px;
     margin-bottom: 12px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
     font-size: 16px;
     font-weight: 500;
+    color: var(--color-texto-secundario);
 }
 
 /* --- Estilo para el botón "+" --- */
 .add-button {
-    background-color: #F0F0F0;
+    background-color: var(--color-separador); 
+    color: var(--color-texto-principal);
     border: none;
     width: 32px;
     height: 32px;
     border-radius: 10px;
     font-size: 22px;
-    cursor: pointer; /* Muestra una manito al pasar el mouse */
+    cursor: pointer; 
 }
 
-/* --- Estilo para el botón verde de abajo --- */
+/* --- Estilo para el pie de página (footer) --- */
+footer {
+    padding-top: 10px; 
+    border-top: 1px solid var(--color-separador);
+}
 .view-cart-button {
     width: 100%;
     padding: 18px;
-    background-color: #8A9A5B; /* Verde olivo */
+    background-color: var(--color-secundario); 
     color: white;
     border: none;
     border-radius: 16px;
     font-size: 18px;
     font-weight: 500;
     cursor: pointer;
+}
+
+/* Estilos para el Modal de Carrito */
+#cart-modal div {
+    background: var(--bg-tarjeta) !important;
+}
+
+#cart-modal h2 {
+    color: var(--color-texto-principal) !important;
+}
+
+#cart-modal #table-info {
+    color: var(--color-secundario) !important;
+}
+#cart-modal ul {
+    color: var(--color-texto-secundario) !important;
+}
+
+/* --- Estilo para el botón de eliminar producto del carrito --- */
+.remove-item-button {
+    background-color: #D32F2F; /* Rojo */
+    color: white;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1; /* Centra el 'x' */
+    margin-left: 10px;
+    transition: background-color 0.15s;
+}
+.remove-item-button:hover {
+    background-color: #b71c1c;
 }

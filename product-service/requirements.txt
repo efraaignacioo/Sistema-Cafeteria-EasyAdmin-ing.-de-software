@@ -4,3 +4,6 @@ sqlalchemy
 PyMySQL
 cryptography
 python-jose
+qrcode
+pillow
+requests
